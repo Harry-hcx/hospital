@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="page-wrapper">
     <AppHeader />
     <div class="page-body">
@@ -21,8 +21,8 @@
 
         <div v-if="total > pageSize" class="pagination">
           <button :disabled="page <= 1" @click="page--; fetchReviews()">上一页</button>
-          <span>{{ page }} / {{ Math.ceil(total / pageSize) }}</span>
-          <button :disabled="page >= Math.ceil(total / pageSize)" @click="page++; fetchReviews()">下一页</button>
+          <span>{{ page }} / {{ totalPages }}</span>
+          <button :disabled="page >= totalPages" @click="page++; fetchReviews()">下一页</button>
         </div>
       </div>
     </div>
@@ -31,7 +31,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AppHeader from '@/components/AppHeader.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppFooter from '@/components/AppFooter.vue'
@@ -42,6 +42,7 @@ const reviews = ref([])
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
 
 onMounted(() => fetchReviews())
 

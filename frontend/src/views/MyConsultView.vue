@@ -34,8 +34,8 @@
 
         <div v-if="total > pageSize" class="pagination">
           <button :disabled="page <= 1" @click="page--; fetchOrders()">上一页</button>
-          <span>{{ page }} / {{ Math.ceil(total / pageSize) }}</span>
-          <button :disabled="page >= Math.ceil(total / pageSize)" @click="page++; fetchOrders()">下一页</button>
+          <span>{{ page }} / {{ totalPages }}</span>
+          <button :disabled="page >= totalPages" @click="page++; fetchOrders()">下一页</button>
         </div>
 
         <div v-if="showReview" class="modal-overlay" @click.self="showReview = false">
@@ -59,7 +59,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
@@ -74,6 +74,7 @@ const activeTab = ref('')
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
 
 const tabs = [
   { key: '', label: '全部' },
