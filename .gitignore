@@ -1,16 +1,31 @@
-# Compiled class file
-*.class
+# Dependencies
+node_modules/
+frontend/node_modules/
 
-# Log file
+# Build output
+dist/
+frontend/dist/
+
+# Environment (keep .env.development, ignore others)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
 
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# Java
+*.class
 *.jar
 *.war
 *.nar
@@ -18,7 +33,9 @@
 *.zip
 *.tar.gz
 *.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+.mtj.tmp/
 hs_err_pid*
 replay_pid*
+
+# Backend build
+backend/target/
