@@ -1,6 +1,6 @@
 package com.hospital.controller;
 
-import cn.hutool.crypto.digest.DigestUtil;
+import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hospital.auth.JwtUtils;
 import com.hospital.common.Result;
@@ -42,7 +42,7 @@ public class AuthController {
         User user = new User();
         user.setUsername(phone);
         user.setPhone(phone);
-        user.setPassword(DigestUtil.md5Hex(password));
+        user.setPassword(BCrypt.hashpw(password));
         user.setAvatar("img/default-avatar.png");
         user.setStatus(1);
         userMapper.insert(user);
@@ -59,7 +59,7 @@ public class AuthController {
 
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
-        if (user == null || !user.getPassword().equals(DigestUtil.md5Hex(password))) {
+        if (user == null || !BCrypt.checkpw(password, user.getPassword())) {
             return Result.fail(400, "手机号或密码错误");
         }
 
@@ -101,10 +101,10 @@ public class AuthController {
         String oldPassword = body.get("oldPassword");
         String newPassword = body.get("newPassword");
 
-        if (!user.getPassword().equals(DigestUtil.md5Hex(oldPassword))) {
+        if (!BCrypt.checkpw(oldPassword, user.getPassword())) {
             return Result.fail(400, "原密码错误");
         }
-        user.setPassword(DigestUtil.md5Hex(newPassword));
+        user.setPassword(BCrypt.hashpw(newPassword));
         userMapper.updateById(user);
         return Result.ok();
     }
