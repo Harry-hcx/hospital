@@ -16,6 +16,9 @@ frontend/dist/
 .vscode/
 *.swp
 *.swo
+.clinerules/
+AGENTS.md
+.clineignore
 
 # OS
 .DS_Store
@@ -39,3 +42,6 @@ replay_pid*
 
 # Backend build
 backend/target/
+
+#docs
+原型/
