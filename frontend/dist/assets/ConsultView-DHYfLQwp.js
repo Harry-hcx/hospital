@@ -1,0 +1,1 @@
+import{A as s,a}from"./AppFooter-BoTOskdf.js";import{c as r,f as o,a as t,o as n}from"./index-Wp6GPNV5.js";const p={class:"page-content"},d={__name:"ConsultView",setup(l){return(m,e)=>(n(),r("div",p,[o(s),e[0]||(e[0]=t("h2",null,"电话咨询 - 由成员3开发",-1)),e[1]||(e[1]=t("p",null,"此页面由成员3开发",-1)),o(a)]))}};export{d as default};

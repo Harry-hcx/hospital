@@ -1,0 +1,1 @@
+import{A as o,a}from"./AppFooter-BoTOskdf.js";import{c as r,f as s,a as t,o as p}from"./index-Wp6GPNV5.js";const n={class:"page-content"},d={__name:"DiseaseListView",setup(l){return(i,e)=>(p(),r("div",n,[s(o),e[0]||(e[0]=t("h2",null,"疾病列表 - 由成员2开发",-1)),e[1]||(e[1]=t("p",null,"此页面由成员2开发",-1)),s(a)]))}};export{d as default};

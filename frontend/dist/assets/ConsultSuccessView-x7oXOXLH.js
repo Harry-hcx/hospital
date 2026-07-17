@@ -1,0 +1,1 @@
+import{A as t,a}from"./AppFooter-BoTOskdf.js";import{c as r,f as o,a as s,o as n}from"./index-Wp6GPNV5.js";const p={class:"page-content"},d={__name:"ConsultSuccessView",setup(l){return(c,e)=>(n(),r("div",p,[o(t),e[0]||(e[0]=s("h2",null,"咨询成功 - 由成员3开发",-1)),e[1]||(e[1]=s("p",null,"此页面由成员3开发",-1)),o(a)]))}};export{d as default};

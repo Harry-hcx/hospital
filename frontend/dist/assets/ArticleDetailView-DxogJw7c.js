@@ -1,0 +1,1 @@
+import{A as a,a as r}from"./AppFooter-BoTOskdf.js";import{c as s,f as t,a as o,o as p}from"./index-Wp6GPNV5.js";const n={class:"page-content"},d={__name:"ArticleDetailView",setup(l){return(i,e)=>(p(),s("div",n,[t(a),e[0]||(e[0]=o("h2",null,"文章详情 - 由成员2开发",-1)),e[1]||(e[1]=o("p",null,"此页面由成员2开发",-1)),t(r)]))}};export{d as default};

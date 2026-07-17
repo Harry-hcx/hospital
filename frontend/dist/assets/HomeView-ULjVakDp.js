@@ -1,0 +1,1 @@
+import{A as s,a as t}from"./AppFooter-BoTOskdf.js";import{c as r,f as o,a as e,o as p}from"./index-Wp6GPNV5.js";const n={class:"home-page"},d={__name:"HomeView",setup(c){return(l,a)=>(p(),r("div",n,[o(s),a[0]||(a[0]=e("div",{class:"page-content"},[e("h2",null,"欢迎来到健康之路在线医疗平台"),e("p",null,"首页内容由成员2开发")],-1)),o(t)]))}};export{d as default};

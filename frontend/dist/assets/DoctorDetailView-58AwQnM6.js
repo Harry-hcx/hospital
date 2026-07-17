@@ -1,0 +1,1 @@
+import{A as a,a as r}from"./AppFooter-BoTOskdf.js";import{c as s,f as o,a as t,o as p}from"./index-Wp6GPNV5.js";const n={class:"page-content"},d={__name:"DoctorDetailView",setup(l){return(c,e)=>(p(),s("div",n,[o(a),e[0]||(e[0]=t("h2",null,"医生详情 - 由成员2开发",-1)),e[1]||(e[1]=t("p",null,"此页面由成员2开发",-1)),o(r)]))}};export{d as default};
