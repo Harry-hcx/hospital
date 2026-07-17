@@ -27,6 +27,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                         "/articles/**",
                         "/search/**",
                         "/configs/**",
+                        "/health",
                         "/doc.html",
                         "/webjars/**",
                         "/v3/api-docs/**",

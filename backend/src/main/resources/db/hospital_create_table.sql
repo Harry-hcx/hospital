@@ -77,6 +77,13 @@ CREATE TABLE `t_config` (
   UNIQUE KEY `config_key` (`config_key`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8 COMMENT='系统配置表';
 
+INSERT INTO `t_config` (`id`, `config_key`, `config_value`, `description`) VALUES
+(1, 'payment_types', '[\"支付宝\",\"微信支付\",\"医保支付\"]', '支持的支付方式'),
+(2, 'banner_images', '[\"img/banner1.jpg\",\"img/banner2.jpg\",\"img/banner3.jpg\"]', '首页轮播图'),
+(3, 'app_name', '在线预约挂号系统', '系统名称'),
+(4, 'hotline', '400-123-4567', '客服热线'),
+(5, 'announcement', '欢迎使用在线预约挂号系统，如有问题请拨打客服热线', '首页公告');
+
 /*Table structure for table `t_consult` */
 
 DROP TABLE IF EXISTS `t_consult`;
