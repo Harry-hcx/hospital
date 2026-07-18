@@ -19,6 +19,7 @@ frontend/dist/
 .clinerules/
 AGENTS.md
 .clineignore
+memory-bank/
 
 # OS
 .DS_Store
