@@ -1,18 +1,30 @@
 server:
   port: 8080
+  servlet:
+    context-path: /api
+
 spring:
   datasource:
-    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
-    url: ${DB_URL:jdbc:mysql://localhost:3306/hospital_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root}
-    druid:
-      validation-query: SELECT 1
+    url: jdbc:mysql://localhost:3306/hospital_db?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
+    username: root
+    password: 1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jackson:
-    default-property-inclusion: non_null
-    serialization:
-      write-dates-as-timestamps: false
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+
 mybatis-plus:
-  mapper-locations: classpath:/mapper/*.xml
+  type-aliases-package: com.hospital.entity,com.hospital.vo,com.hospital.dto
+  mapper-locations: classpath:mapper/*.xml
   configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
+
+jwt:
+  secret: hospital-jwt-secret-key-2026
+  expire: 86400000
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
