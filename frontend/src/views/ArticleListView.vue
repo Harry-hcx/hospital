@@ -23,7 +23,7 @@
 
       <div class="article-list">
         <div class="article-card" v-for="a in articles" :key="a.id" @click="$router.push(`/article/${a.id}`)">
-          <img :src="a.cover || defaultImg" :alt="a.title" class="article-img" />
+          <img :src="resolveArticleImage(a)" :alt="a.title" class="article-img" />
           <div class="article-body">
             <h3>{{ a.title }}</h3>
             <p class="summary">{{ a.summary || '' }}</p>
@@ -52,6 +52,7 @@ import AppFooter from '@/components/AppFooter.vue'
 import Pagination from '@/components/Pagination.vue'
 import { getArticles } from '@/api/article'
 import { getPrimaryDepartments } from '@/api/department'
+import { resolveImageUrl } from '@/utils/asset'
 
 const articles = ref([])
 const departments = ref([])
@@ -59,14 +60,15 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
-const defaultImg = 'https://picsum.photos/300/180?random=99'
+
+const resolveArticleImage = (article) => resolveImageUrl(article?.cover || article?.image, 'health_01.jpeg')
 
 const filters = ref({ departmentId: '', keyword: '' })
 
 onMounted(async () => {
   try {
     const res = await getPrimaryDepartments()
-    departments.value = (res.data.data || res.data) || []
+    departments.value = res?.data || []
   } catch (e) { /* ignore */ }
   fetchData()
 })
@@ -75,7 +77,7 @@ async function fetchData() {
   loading.value = true
   try {
     const res = await getArticles({ page: page.value, pageSize: pageSize.value, ...filters.value })
-    const d = res.data.data || res.data
+    const d = res?.data || {}
     articles.value = d.records || []
     total.value = d.total || 0
   } catch (e) { console.error('加载文章列表失败', e) }

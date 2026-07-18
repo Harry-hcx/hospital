@@ -33,7 +33,7 @@
 
       <div class="hospital-list">
         <div class="hospital-card" v-for="h in hospitals" :key="h.id" @click="$router.push(`/hospital/${h.id}`)">
-          <img :src="h.avatar || defaultImg" :alt="h.name" class="hospital-img" />
+          <img :src="resolveHospitalImage(h)" :alt="h.name" class="hospital-img" />
           <div class="hospital-info">
             <h3>{{ h.name }} <span class="level-tag">{{ h.level || '三级甲等' }}</span></h3>
             <p class="addr">{{ h.province }}{{ h.city }}{{ h.district || '' }} {{ h.address || '' }}</p>
@@ -67,6 +67,7 @@ import AppFooter from '@/components/AppFooter.vue'
 import Pagination from '@/components/Pagination.vue'
 import { getHospitals } from '@/api/hospital'
 import { getPrimaryDepartments } from '@/api/department'
+import { resolveImageUrl } from '@/utils/asset'
 
 const hospitals = ref([])
 const departments = ref([])
@@ -74,7 +75,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
-const defaultImg = 'https://picsum.photos/300/200?random=99'
+
+const resolveHospitalImage = (hospital) => resolveImageUrl(hospital?.image || hospital?.avatar, 'hospital_100001977.jpg')
 
 const filters = ref({
   departmentId: '',
@@ -87,7 +89,7 @@ const filters = ref({
 onMounted(async () => {
   try {
     const res = await getPrimaryDepartments()
-    const d = res.data.data || res.data
+    const d = res?.data || []
     departments.value = d || []
   } catch (e) { /* ignore */ }
   fetchData()
@@ -101,7 +103,7 @@ async function fetchData() {
       pageSize: pageSize.value,
       ...filters.value
     })
-    const d = res.data.data || res.data
+    const d = res?.data || {}
     hospitals.value = d.records || []
     total.value = d.total || 0
   } catch (e) {

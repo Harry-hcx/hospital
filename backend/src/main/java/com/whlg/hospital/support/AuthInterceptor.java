@@ -24,6 +24,7 @@ public class AuthInterceptor implements HandlerInterceptor {
             "/api/home/index",
             "/api/hospitals",
             "/api/departments/tree",
+            "/api/departments/primary",
             "/api/doctors",
             "/api/diseases",
             "/api/articles",
@@ -49,7 +50,8 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         String authorization = request.getHeader("Authorization");
         if (authorization == null || !authorization.startsWith("Bearer ")) {
-            throw new ApiException(StatusCode.UNAUTHORIZED, "未登录");
+            System.out.println(requestUri);
+            throw new ApiException(StatusCode.UNAUTHORIZED, "未登录"+requestUri);
         }
 
         String token = authorization.substring("Bearer ".length()).trim();
@@ -77,6 +79,7 @@ public class AuthInterceptor implements HandlerInterceptor {
                 pathMatcher.match("/api/hospitals/*", requestUri)
                         || pathMatcher.match("/api/hospitals/*/departments", requestUri)
                         || pathMatcher.match("/api/hospitals/*/doctors", requestUri)
+                        || pathMatcher.match("/api/departments/*/children", requestUri)
                         || pathMatcher.match("/api/doctors/*", requestUri)
                         || pathMatcher.match("/api/doctors/*/schedules", requestUri)
                         || pathMatcher.match("/api/doctors/*/reviews", requestUri)

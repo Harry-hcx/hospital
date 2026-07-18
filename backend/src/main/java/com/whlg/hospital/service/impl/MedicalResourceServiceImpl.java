@@ -130,7 +130,29 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
 
     @Override
     public List<Map<String, Object>> getDepartmentTree() {
-        return buildDepartmentTree(departmentMapper.selectList(new LambdaQueryWrapper<Department>().orderByAsc(Department::getSortOrder, Department::getId)));
+        return buildDepartmentTree(departmentMapper.selectList(baseDepartmentQuery()));
+    }
+
+    @Override
+    public List<Map<String, Object>> getPrimaryDepartments() {
+        return departmentMapper.selectList(baseDepartmentQuery()
+                        .eq(Department::getParentId, 0L))
+                .stream()
+                .map(this::departmentSummary)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Map<String, Object>> getDepartmentChildren(Long parentId) {
+        Department parent = departmentMapper.selectOne(baseDepartmentQuery().eq(Department::getId, parentId));
+        if (parent == null) {
+            throw new ApiException(StatusCode.NOT_FOUND, "科室不存在");
+        }
+        return departmentMapper.selectList(baseDepartmentQuery()
+                        .eq(Department::getParentId, parentId))
+                .stream()
+                .map(this::departmentSummary)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -270,20 +292,30 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         List<Department> parentDepartments = departmentList.stream().filter(item -> item.getParentId() == 0L).collect(Collectors.toList());
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (Department parent : parentDepartments) {
-            Map<String, Object> parentNode = new LinkedHashMap<String, Object>();
-            parentNode.put("id", parent.getId());
-            parentNode.put("name", parent.getName());
+            Map<String, Object> parentNode = departmentSummary(parent);
             List<Map<String, Object>> children = departmentList.stream()
                     .filter(item -> parent.getId().equals(item.getParentId()))
-                    .map(item -> {
-                        Map<String, Object> child = new LinkedHashMap<String, Object>();
-                        child.put("id", item.getId());
-                        child.put("name", item.getName());
-                        return child;
-                    }).collect(Collectors.toList());
+                    .map(this::departmentSummary)
+                    .collect(Collectors.toList());
             parentNode.put("children", children);
             result.add(parentNode);
         }
+        return result;
+    }
+
+    private LambdaQueryWrapper<Department> baseDepartmentQuery() {
+        return new LambdaQueryWrapper<Department>()
+                .eq(Department::getStatus, 1)
+                .orderByAsc(Department::getSortOrder, Department::getId);
+    }
+
+    private Map<String, Object> departmentSummary(Department department) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("id", department.getId());
+        result.put("name", department.getName());
+        result.put("description", department.getDescription());
+        result.put("parentId", department.getParentId());
+        result.put("sortOrder", department.getSortOrder());
         return result;
     }
 
@@ -313,15 +345,11 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         Config config = configMapper.selectOne(new LambdaQueryWrapper<Config>().eq(Config::getConfigKey, "homeBanners"));
         if (config == null || config.getConfigValue() == null) {
             Map<String, Object> banner = new LinkedHashMap<String, Object>();
-            banner.put("id", 1);
-            banner.put("image", "/img/banner-1.png");
-            banner.put("link", "/doctor-detail.html?id=1");
+
             return Collections.singletonList(banner);
         }
         Map<String, Object> banner = new LinkedHashMap<String, Object>();
-        banner.put("id", 1);
-        banner.put("image", "/img/banner-1.png");
-        banner.put("link", "/doctor-detail.html?id=1");
+        
         return Collections.singletonList(banner);
     }
 

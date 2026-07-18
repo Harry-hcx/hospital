@@ -23,7 +23,7 @@
         </div>
         <div class="card-grid" v-if="hotHospitals && hotHospitals.length">
           <div class="card" v-for="h in hotHospitals" :key="h.id" @click="$router.push(`/hospital/${h.id}`)">
-            <img :src="h.avatar || defaultImg" :alt="h.name" class="card-img" />
+            <img :src="resolveHospitalImage(h)" :alt="h.name" class="card-img" />
             <div class="card-body">
               <h4>{{ h.name }}</h4>
               <p class="card-level">{{ h.level || '三级甲等' }}</p>
@@ -42,7 +42,7 @@
         </div>
         <div class="card-grid" v-if="hotDoctors && hotDoctors.length">
           <div class="card card-doctor" v-for="d in hotDoctors" :key="d.id" @click="$router.push(`/doctor/${d.id}`)">
-            <img :src="d.avatar || defaultImg" :alt="d.name" class="card-img" />
+            <img :src="resolveDoctorImage(d)" :alt="d.name" class="card-img" />
             <div class="card-body">
               <h4>{{ d.name }} <span class="title-tag">{{ d.title || '主治医师' }}</span></h4>
               <p>{{ d.hospitalName }} · {{ d.departmentName }}</p>
@@ -75,7 +75,7 @@
         </div>
         <div class="article-list" v-if="hotArticles && hotArticles.length">
           <div class="article-item" v-for="a in hotArticles" :key="a.id" @click="$router.push(`/article/${a.id}`)">
-            <img :src="a.cover || defaultImg" :alt="a.title" class="article-img" />
+            <img :src="resolveArticleImage(a)" :alt="a.title" class="article-img" />
             <div class="article-body">
               <h4>{{ a.title }}</h4>
               <p class="article-desc">{{ a.summary || '' }}</p>
@@ -91,42 +91,61 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import RateStar from '@/components/RateStar.vue'
 import { getHomeIndex } from '@/api/home'
+import { DEFAULT_IMAGES, resolveImageUrl } from '@/utils/asset'
 
 const banners = ref([
-  'https://picsum.photos/1200/400?random=1',
-  'https://picsum.photos/1200/400?random=2',
-  'https://picsum.photos/1200/400?random=3'
+  DEFAULT_IMAGES.banner,
+  resolveImageUrl('banner_02.jpeg', 'banner_01.jpeg'),
+  resolveImageUrl('banner_03.jpeg', 'banner_01.jpeg'),
 ])
 const bannerIndex = ref(0)
-const currentBanner = ref(banners.value[0])
+const currentBanner = computed(() => banners.value[bannerIndex.value] || banners.value[0] || '')
 let timer = null
 
 const hotHospitals = ref([])
 const hotDoctors = ref([])
 const hotDiseases = ref([])
 const hotArticles = ref([])
-const defaultImg = 'https://picsum.photos/200/200?random=99'
 
-onMounted(async () => {
+const resolveHospitalImage = (hospital) => resolveImageUrl(hospital?.image || hospital?.avatar, 'hospital_100001977.jpg')
+const resolveDoctorImage = (doctor) => resolveImageUrl(doctor?.avatar, 'doctor-male-doc.jpg')
+const resolveArticleImage = (article) => resolveImageUrl(article?.cover || article?.image, 'health_01.jpeg')
+
+const startBannerTimer = () => {
+  if (timer) clearInterval(timer)
+  if (banners.value.length <= 1) return
+
   timer = setInterval(() => {
     bannerIndex.value = (bannerIndex.value + 1) % banners.value.length
-    currentBanner.value = banners.value[bannerIndex.value]
   }, 4000)
+}
+
+onMounted(async () => {
+  startBannerTimer()
 
   try {
     const res = await getHomeIndex()
-    if (res.data.code === 200 || !res.data.code) {
-      const d = res.data.data || res.data
-      hotHospitals.value = d.hotHospitals || []
-      hotDoctors.value = d.hotDoctors || []
-      hotDiseases.value = d.hotDiseases || []
-      hotArticles.value = d.hotArticles || []
+    const d = res?.data || {}
+
+    const bannerImages = (d.banners || [])
+      .map((item) => resolveImageUrl(typeof item === 'string' ? item : item?.image, 'banner_01.jpeg'))
+      .filter(Boolean)
+
+    if (bannerImages.length) {
+      banners.value = bannerImages
+      bannerIndex.value = 0
+      startBannerTimer()
     }
+
+    hotHospitals.value = d.recommendHospitals || d.hotHospitals || []
+    hotDoctors.value = d.recommendDoctors || d.hotDoctors || []
+    hotDiseases.value = d.recommendDiseases || d.hotDiseases || []
+    hotArticles.value = d.recommendArticles || d.hotArticles || []
   } catch (e) {
     console.error('加载首页数据失败', e)
   }

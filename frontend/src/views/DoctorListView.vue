@@ -23,7 +23,7 @@
 
       <div class="doctor-grid">
         <div class="doctor-card" v-for="d in doctors" :key="d.id" @click="$router.push(`/doctor/${d.id}`)">
-          <img :src="d.avatar || defaultImg" :alt="d.name" class="doctor-img" />
+          <img :src="resolveDoctorImage(d)" :alt="d.name" class="doctor-img" />
           <div class="doctor-info">
             <h4>{{ d.name }} <span class="title-tag">{{ d.title }}</span></h4>
             <p class="dept">{{ d.hospitalName }} · {{ d.departmentName }}</p>
@@ -50,6 +50,7 @@ import RateStar from '@/components/RateStar.vue'
 import Pagination from '@/components/Pagination.vue'
 import { getDoctors } from '@/api/doctor'
 import { getPrimaryDepartments } from '@/api/department'
+import { resolveImageUrl } from '@/utils/asset'
 
 const doctors = ref([])
 const departments = ref([])
@@ -57,14 +58,15 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(12)
 const loading = ref(false)
-const defaultImg = 'https://picsum.photos/200/200?random=99'
+
+const resolveDoctorImage = (doctor) => resolveImageUrl(doctor?.avatar, 'doctor-male-doc.jpg')
 
 const filters = ref({ departmentId: '', keyword: '' })
 
 onMounted(async () => {
   try {
     const res = await getPrimaryDepartments()
-    departments.value = (res.data.data || res.data) || []
+    departments.value = res?.data || []
   } catch (e) { /* ignore */ }
   fetchData()
 })
@@ -73,7 +75,7 @@ async function fetchData() {
   loading.value = true
   try {
     const res = await getDoctors({ page: page.value, pageSize: pageSize.value, ...filters.value })
-    const d = res.data.data || res.data
+    const d = res?.data || {}
     doctors.value = d.records || []
     total.value = d.total || 0
   } catch (e) {

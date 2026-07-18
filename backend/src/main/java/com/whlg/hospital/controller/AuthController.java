@@ -3,6 +3,7 @@ package com.whlg.hospital.controller;
 import com.whlg.hospital.dto.ChangePasswordRequest;
 import com.whlg.hospital.dto.LoginRequest;
 import com.whlg.hospital.dto.RegisterRequest;
+import com.whlg.hospital.dto.SendCaptchaRequest;
 import com.whlg.hospital.service.AuthService;
 import com.whlg.hospital.util.R;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +23,11 @@ public class AuthController {
 
     public AuthController(AuthService authService) {
         this.authService = authService;
+    }
+
+    @PostMapping("/sendCaptcha")
+    public R<Map<String, Object>> sendCaptcha(@RequestBody SendCaptchaRequest request) {
+        return R.ok(authService.sendCaptcha(request));
     }
 
     @PostMapping("/register")

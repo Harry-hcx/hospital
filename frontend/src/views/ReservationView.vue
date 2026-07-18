@@ -11,7 +11,7 @@
 
         <!-- 医生信息 -->
         <div class="doctor-info" v-if="doctor.id">
-          <img :src="doctor.avatar || defaultImg" :alt="doctor.name" />
+          <img :src="resolveImageUrl(doctor.avatar, 'doctor-male-doc.jpg') || defaultImg" :alt="doctor.name" />
           <div>
             <h4>{{ doctor.name }} <span class="title-tag">{{ doctor.title }}</span></h4>
             <p>{{ doctor.hospitalName }} · {{ doctor.departmentName }}</p>
@@ -65,6 +65,7 @@ import AppFooter from '@/components/AppFooter.vue'
 import { getDoctorDetail, getDoctorSchedules } from '@/api/doctor'
 import { getFamilyMembers } from '@/api/user'
 import { createAppointment } from '@/api/appointment'
+import { resolveImageUrl } from '@/utils/asset'
 
 const route = useRoute()
 const router = useRouter()
@@ -72,7 +73,7 @@ const doctor = ref({})
 const schedules = ref([])
 const members = ref([])
 const submitting = ref(false)
-const defaultImg = 'https://picsum.photos/100/100?random=99'
+const defaultImg = resolveImageUrl('doctor-male-doc.jpg', 'doctor-male-doc.jpg')
 
 const form = ref({
   scheduleId: route.query.scheduleId ? Number(route.query.scheduleId) : '',
@@ -89,9 +90,9 @@ onMounted(async () => {
         getDoctorSchedules(doctorId, { days: 7 }),
         getFamilyMembers()
       ])
-      doctor.value = dRes.data.data || dRes.data
-      schedules.value = (sRes.data.data || sRes.data) || []
-      members.value = (mRes.data.data || mRes.data) || []
+      doctor.value = dRes?.data || {}
+      schedules.value = sRes?.data || []
+      members.value = mRes?.data || []
     } catch (e) { console.error('加载预约信息失败', e) }
   }
 })
@@ -106,7 +107,7 @@ async function handleSubmit() {
       familyMemberId: form.value.familyMemberId,
       diseaseDesc: form.value.diseaseDesc
     })
-    const d = res.data.data || res.data
+    const d = res?.data || {}
     const orderNo = d.orderNo || d.id
     router.push(`/reservation/pay/${orderNo}`)
   } catch (e) {

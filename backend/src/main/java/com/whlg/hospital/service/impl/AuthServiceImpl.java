@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.whlg.hospital.dto.ChangePasswordRequest;
 import com.whlg.hospital.dto.LoginRequest;
 import com.whlg.hospital.dto.RegisterRequest;
+import com.whlg.hospital.dto.SendCaptchaRequest;
 import com.whlg.hospital.entity.User;
 import com.whlg.hospital.entity.UserToken;
 import com.whlg.hospital.mapper.UserMapper;
@@ -12,46 +13,106 @@ import com.whlg.hospital.mapper.UserTokenMapper;
 import com.whlg.hospital.service.AuthService;
 import com.whlg.hospital.support.ApiException;
 import com.whlg.hospital.support.CurrentUserHolder;
+import com.whlg.hospital.util.AliyunSmsUtil;
 import com.whlg.hospital.util.PasswordUtil;
 import com.whlg.hospital.util.StatusCode;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 @Service
 public class AuthServiceImpl extends ServiceSupport implements AuthService {
 
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^1\\d{10}$");
+    private static final long CAPTCHA_EXPIRE_SECONDS = 300L;
+    private static final long CAPTCHA_COOLDOWN_SECONDS = 60L;
+    private static final String CAPTCHA_CODE_KEY_PREFIX = "auth:captcha:code:";
+    private static final String CAPTCHA_COOLDOWN_KEY_PREFIX = "auth:captcha:cooldown:";
+
     private final UserMapper userMapper;
     private final UserTokenMapper userTokenMapper;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final AliyunSmsUtil aliyunSmsUtil;
+    private final String smsSignName;
+    private final String smsTemplateCode;
 
-    public AuthServiceImpl(UserMapper userMapper, UserTokenMapper userTokenMapper) {
+    public AuthServiceImpl(UserMapper userMapper,
+                           UserTokenMapper userTokenMapper,
+                           StringRedisTemplate stringRedisTemplate,
+                           AliyunSmsUtil aliyunSmsUtil,
+                           @Value("${aliyun.sms.sign-name:}") String smsSignName,
+                           @Value("${aliyun.sms.template-code:}") String smsTemplateCode) {
         this.userMapper = userMapper;
         this.userTokenMapper = userTokenMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.aliyunSmsUtil = aliyunSmsUtil;
+        this.smsSignName = smsSignName;
+        this.smsTemplateCode = smsTemplateCode;
+    }
+
+    @Override
+    public Map<String, Object> sendCaptcha(SendCaptchaRequest request) {
+        check(request != null, "请求体不能为空");
+        String phone = normalizePhone(request.getPhone());
+        check(PHONE_PATTERN.matcher(phone).matches(), "手机号格式不正确");
+        checkNotBlank(smsSignName, "短信签名未配置");
+        checkNotBlank(smsTemplateCode, "短信模板未配置");
+
+        String cooldownKey = captchaCooldownKey(phone);
+        Boolean allowed = stringRedisTemplate.opsForValue()
+                .setIfAbsent(cooldownKey, "1", CAPTCHA_COOLDOWN_SECONDS, TimeUnit.SECONDS);
+        if (!Boolean.TRUE.equals(allowed)) {
+            throw new ApiException(StatusCode.BAD_REQUEST, "验证码发送过于频繁，请稍后再试");
+        }
+
+        String code = AliyunSmsUtil.generateVerificationCode();
+        try {
+            String templateParam = String.format("{\"code\":\"%s\",\"min\":\"5\"}", code);
+            aliyunSmsUtil.sendSmsVerifyCode(phone, smsSignName, smsTemplateCode, templateParam, "captcha-" + phone);
+            stringRedisTemplate.opsForValue().set(captchaCodeKey(phone), code, CAPTCHA_EXPIRE_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            stringRedisTemplate.delete(cooldownKey);
+            throw new ApiException(StatusCode.ERROR, "验证码发送失败: " + ex.getMessage());
+        }
+
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("phone", phone);
+        result.put("expireSeconds", CAPTCHA_EXPIRE_SECONDS);
+        result.put("cooldownSeconds", CAPTCHA_COOLDOWN_SECONDS);
+        return result;
     }
 
     @Override
     public Map<String, Object> register(RegisterRequest request) {
         check(request != null, "请求体不能为空");
-        check(request.getPhone() != null && !request.getPhone().trim().isEmpty(), "手机号不能为空");
+        String phone = normalizePhone(request.getPhone());
+        check(PHONE_PATTERN.matcher(phone).matches(), "手机号格式不正确");
         check(request.getPassword() != null && !request.getPassword().trim().isEmpty(), "密码不能为空");
         check(request.getPassword().equals(request.getConfirmPassword()), "两次密码不一致");
-        User exists = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, request.getPhone()));
+        verifyCaptcha(phone, request.getCaptcha());
+
+        User exists = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
         if (exists != null) {
             throw new ApiException(StatusCode.BAD_REQUEST, "手机号已注册");
         }
 
         User user = new User();
-        user.setUsername(request.getPhone());
-        user.setPhone(request.getPhone());
+        user.setUsername(phone);
+        user.setPhone(phone);
         user.setPassword(PasswordUtil.md5(request.getPassword()));
-        user.setRealName("用户" + request.getPhone().substring(request.getPhone().length() - 4));
+        user.setRealName("用户" + phone.substring(phone.length() - 4));
         user.setAvatar("/avatar/default.png");
         user.setStatus(1);
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.insert(user);
+        stringRedisTemplate.delete(captchaCodeKey(phone));
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("userId", user.getId());
@@ -111,6 +172,29 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
                 .set(UserToken::getStatus, 0)
                 .set(UserToken::getUpdateTime, LocalDateTime.now()));
         CurrentUserHolder.clear();
+    }
+
+    private void verifyCaptcha(String phone, String captcha) {
+        check(captcha != null && !captcha.trim().isEmpty(), "验证码不能为空");
+        String cachedCaptcha = stringRedisTemplate.opsForValue().get(captchaCodeKey(phone));
+        check(cachedCaptcha != null, "验证码已过期，请重新获取");
+        check(cachedCaptcha.equals(captcha.trim()), "验证码错误");
+    }
+
+    private String normalizePhone(String phone) {
+        return phone == null ? "" : phone.trim();
+    }
+
+    private String captchaCodeKey(String phone) {
+        return CAPTCHA_CODE_KEY_PREFIX + phone;
+    }
+
+    private String captchaCooldownKey(String phone) {
+        return CAPTCHA_COOLDOWN_KEY_PREFIX + phone;
+    }
+
+    private void checkNotBlank(String value, String message) {
+        check(value != null && !value.trim().isEmpty(), message);
     }
 
     private void disableUserTokens(Long userId) {

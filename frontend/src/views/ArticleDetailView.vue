@@ -13,8 +13,8 @@
           <span>{{ article.createTime }}</span>
           <span v-if="article.viewCount">{{ article.viewCount }} 阅读</span>
         </div>
-        <div class="article-cover" v-if="article.cover">
-          <img :src="article.cover" :alt="article.title" />
+        <div class="article-cover" v-if="articleCover">
+          <img :src="articleCover" :alt="article.title" />
         </div>
         <div class="article-content" v-html="article.content || '暂无内容'"></div>
       </div>
@@ -30,14 +30,17 @@ import { useRoute } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import { getArticleDetail } from '@/api/article'
+import { resolveImageUrl } from '@/utils/asset'
 
 const route = useRoute()
 const article = ref({})
+const articleCover = ref('')
 
 onMounted(async () => {
   try {
     const res = await getArticleDetail(route.params.id)
-    article.value = res.data.data || res.data
+    article.value = res?.data || {}
+    articleCover.value = resolveImageUrl(article.value.cover || article.value.image, 'health_01.jpeg')
   } catch (e) { console.error('加载文章详情失败', e) }
 })
 </script>

@@ -8,7 +8,7 @@
       <div class="form-card">
         <h2>在线咨询</h2>
         <div class="doctor-info" v-if="doctor.id">
-          <img :src="doctor.avatar || defaultImg" :alt="doctor.name" />
+          <img :src="resolveImageUrl(doctor.avatar, 'doctor-male-doc.jpg') || defaultImg" :alt="doctor.name" />
           <div>
             <h4>{{ doctor.name }} <span class="title-tag">{{ doctor.title }}</span></h4>
             <p>{{ doctor.hospitalName }} · {{ doctor.departmentName }}</p>
@@ -44,13 +44,14 @@ import AppFooter from '@/components/AppFooter.vue'
 import { getDoctorDetail } from '@/api/doctor'
 import { getFamilyMembers } from '@/api/user'
 import { createConsult } from '@/api/consult'
+import { resolveImageUrl } from '@/utils/asset'
 
 const route = useRoute()
 const router = useRouter()
 const doctor = ref({})
 const members = ref([])
 const submitting = ref(false)
-const defaultImg = 'https://picsum.photos/100/100?random=99'
+const defaultImg = resolveImageUrl('doctor-male-doc.jpg', 'doctor-male-doc.jpg')
 
 const form = ref({ familyMemberId: '', diseaseDesc: '' })
 
@@ -59,8 +60,8 @@ onMounted(async () => {
   if (doctorId) {
     try {
       const [dRes, mRes] = await Promise.all([getDoctorDetail(doctorId), getFamilyMembers()])
-      doctor.value = dRes.data.data || dRes.data
-      members.value = (mRes.data.data || mRes.data) || []
+      doctor.value = dRes?.data || {}
+      members.value = mRes?.data || []
     } catch (e) { console.error('加载咨询信息失败', e) }
   }
 })
@@ -74,7 +75,7 @@ async function handleSubmit() {
       familyMemberId: form.value.familyMemberId,
       diseaseDesc: form.value.diseaseDesc
     })
-    const d = res.data.data || res.data
+    const d = res?.data || {}
     router.push(`/consult/pay/${d.orderNo || d.id}`)
   } catch (e) {
     console.error('咨询提交失败', e)

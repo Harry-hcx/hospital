@@ -7,7 +7,7 @@
         <h2>个人资料</h2>
         <div class="form-card">
           <div class="avatar-section">
-            <img :src="form.avatar || defaultImg" :alt="form.name" />
+            <img :src="resolveImageUrl(form.avatar, 'icons-pa.jpg') || defaultImg" :alt="form.name" />
             <button class="btn-change">更换头像</button>
           </div>
           <div class="form-group">
@@ -48,14 +48,15 @@ import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import { getProfile, updateProfile } from '@/api/user'
+import { resolveImageUrl } from '@/utils/asset'
 
-const defaultImg = 'https://picsum.photos/100/100?random=99'
+const defaultImg = resolveImageUrl('/avatar/user-1.png', 'icons-pa.jpg')
 const form = ref({ name: '', gender: '0', phone: '', email: '', birthday: '', avatar: '' })
 
 onMounted(async () => {
   try {
     const res = await getProfile()
-    const d = res.data.data || res.data
+    const d = res?.data || {}
     if (d) Object.assign(form.value, d)
   } catch (e) { console.error('加载个人信息失败', e) }
 })

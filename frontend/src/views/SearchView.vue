@@ -12,7 +12,7 @@
       <!-- 医院 -->
       <div v-if="activeTab === 'hospital'" class="result-list">
         <div class="result-card" v-for="item in list" :key="item.id" @click="$router.push(`/hospital/${item.id}`)">
-          <img :src="item.avatar || defaultImg" :alt="item.name" class="result-img" />
+          <img :src="resolveHospitalImage(item)" :alt="item.name" class="result-img" />
           <div class="result-info">
             <h4>{{ item.name }} <span class="level-tag">{{ item.level }}</span></h4>
             <p>{{ item.province }}{{ item.city }}{{ item.address }}</p>
@@ -23,7 +23,7 @@
       <!-- 医生 -->
       <div v-if="activeTab === 'doctor'" class="result-list">
         <div class="result-card" v-for="item in list" :key="item.id" @click="$router.push(`/doctor/${item.id}`)">
-          <img :src="item.avatar || defaultImg" :alt="item.name" class="result-img avatar-round" />
+          <img :src="resolveDoctorImage(item)" :alt="item.name" class="result-img avatar-round" />
           <div class="result-info">
             <h4>{{ item.name }} <span class="title-tag">{{ item.title }}</span></h4>
             <p>{{ item.hospitalName }} · {{ item.departmentName }}</p>
@@ -43,7 +43,7 @@
       <!-- 文章 -->
       <div v-if="activeTab === 'article'" class="result-list">
         <div class="result-card" v-for="item in list" :key="item.id" @click="$router.push(`/article/${item.id}`)">
-          <img :src="item.cover || defaultImg" :alt="item.title" class="result-img" />
+          <img :src="resolveArticleImage(item)" :alt="item.title" class="result-img" />
           <div class="result-info">
             <h4>{{ item.title }}</h4>
             <p class="summary">{{ item.summary || '' }}</p>
@@ -68,6 +68,7 @@ import AppFooter from '@/components/AppFooter.vue'
 import RateStar from '@/components/RateStar.vue'
 import Pagination from '@/components/Pagination.vue'
 import { globalSearch } from '@/api/search'
+import { resolveImageUrl } from '@/utils/asset'
 
 const route = useRoute()
 const keyword = ref('')
@@ -77,7 +78,10 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
-const defaultImg = 'https://picsum.photos/200/150?random=99'
+
+const resolveHospitalImage = (item) => resolveImageUrl(item?.image || item?.avatar, 'hospital_100001977.jpg')
+const resolveDoctorImage = (item) => resolveImageUrl(item?.avatar, 'doctor-male-doc.jpg')
+const resolveArticleImage = (item) => resolveImageUrl(item?.cover || item?.image, 'health_01.jpeg')
 
 const tabs = [
   { type: 'hospital', label: '医院' },
@@ -113,7 +117,7 @@ async function fetchData() {
       page: page.value,
       pageSize: pageSize.value
     })
-    const d = res.data.data || res.data
+    const d = res?.data || {}
     list.value = d.records || []
     total.value = d.total || 0
   } catch (e) { console.error('搜索失败', e) }
