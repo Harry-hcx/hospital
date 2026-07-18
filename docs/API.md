@@ -332,19 +332,42 @@ Authorization: Bearer <token>
 {
   "code": 200,
   "message": "success",
-  "data": []
+  "data": [{
+            "id": 13,
+            "name": "心内科",
+            "children": [
+                {
+                    "id": 25,
+                    "name": "心力衰竭科"
+                },
+                {
+                    "id": 26,
+                    "name": "冠心病科"
+                },
+                {
+                    "id": 27,
+                    "name": "高血压科"
+                },
+                {
+                    "id": 28,
+                    "name": "心律失常科"
+                }
+            ]
+        },
+        ...
+      ]
 }
 ```
 
 ---
 
 ### 5.2 一级科室列表
-**GET** `/departments/primary`
+**GET** `/departments/primary`//暂时弃用但保留
 
 ---
 
 ### 5.3 二级科室列表
-**GET** `/departments/{parentId}/children`
+**GET** `/departments/{parentId}/children`//暂时弃用但保留
 
 ---
 
@@ -783,7 +806,7 @@ Authorization: Bearer <token>
 ---
 
 ### 13.12 我的反馈列表
-**GET** `/feedbacks/my`
+**GET** `/feedbacks`
 
 ---
 
