@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { loginApi, getMeApi, logoutApi } from '@/api/auth'
+import { loginApi, getMeApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -30,14 +30,15 @@ export const useAuthStore = defineStore('auth', {
         this.userInfo = res.data
         localStorage.setItem('userInfo', JSON.stringify(this.userInfo))
       } catch {
-        this.logout()
+        this.clearAuth()
       }
     },
 
     logout() {
-      if (this.token) {
-        logoutApi().catch(() => {})
-      }
+      this.clearAuth()
+    },
+
+    clearAuth() {
       this.token = ''
       this.userInfo = null
       localStorage.removeItem('token')

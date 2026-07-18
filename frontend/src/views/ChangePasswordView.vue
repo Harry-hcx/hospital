@@ -51,11 +51,10 @@ async function handleSubmit() {
     await changePasswordApi({
       oldPassword: form.oldPassword,
       newPassword: form.newPassword,
-      confirmPassword: form.confirmPassword,
     })
     alert('密码修改成功，请重新登录')
     auth.logout()
-    router.push('/login')
+    router.push('/login?redirect=/')
   } catch {
     // 拦截器已提示
   } finally {

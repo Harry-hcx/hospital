@@ -24,6 +24,22 @@
           <label>确认密码</label>
           <input v-model="form.confirmPassword" type="password" placeholder="请再次输入密码" />
         </div>
+        <div class="form-group">
+          <label>真实姓名（选填）</label>
+          <input v-model="form.realName" type="text" placeholder="请输入真实姓名" />
+        </div>
+        <div class="form-group">
+          <label>邮箱（选填）</label>
+          <input v-model="form.email" type="email" placeholder="请输入邮箱" />
+        </div>
+        <div class="form-group">
+          <label>性别</label>
+          <select v-model="form.gender">
+            <option value="">请选择</option>
+            <option value="1">男</option>
+            <option value="2">女</option>
+          </select>
+        </div>
         <button type="submit" class="btn-primary btn-block" :disabled="loading">
           {{ loading ? '注册中...' : '注 册' }}
         </button>
@@ -90,15 +106,16 @@ async function handleRegister() {
   if (!/^1[3-9]\d{9}$/.test(form.phone)) return alert('请输入正确的手机号')
   if (form.password.length < 6) return alert('密码至少6位')
   if (form.password !== form.confirmPassword) return alert('两次密码不一致')
-  if (!form.captcha) return alert('请输入验证码')
 
   loading.value = true
   try {
     await registerApi({
+      username: form.phone,
       phone: form.phone,
       password: form.password,
-      confirmPassword: form.confirmPassword,
-      captcha: form.captcha,
+      realName: form.realName || undefined,
+      email: form.email || undefined,
+      gender: form.gender || undefined,
     })
     alert('注册成功！即将跳转登录页')
     router.push('/login')
@@ -152,40 +169,19 @@ onBeforeUnmount(() => {
   color: var(--text-light);
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
 }
 
-.captcha-row {
-  display: flex;
-  gap: 10px;
-}
-
-.captcha-row input {
-  flex: 1;
-}
-
-.btn-captcha {
-  width: 120px;
-  background: var(--bg);
-  color: var(--primary);
+.form-group select {
   border: 1px solid var(--border);
   border-radius: 4px;
-  font-size: 12px;
-  white-space: nowrap;
+  background: var(--bg-white);
+  color: var(--text);
   cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-captcha:hover:not(:disabled) {
-  border-color: var(--primary);
-}
-
-.btn-captcha:disabled {
-  color: var(--text-muted);
-  cursor: not-allowed;
 }
 
 .btn-block {

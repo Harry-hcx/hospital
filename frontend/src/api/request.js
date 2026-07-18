@@ -29,7 +29,7 @@ request.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('userInfo')
-      const redirect = encodeURIComponent(window.location.href)
+      const redirect = encodeURIComponent(window.location.pathname + window.location.search)
       window.location.href = `/login?redirect=${redirect}`
     }
     return Promise.reject(error)
