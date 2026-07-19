@@ -80,16 +80,16 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
     public Map<String, Object> homeIndex() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("banners", loadBanners());
-        result.put("recommendHospitals", hospitalMapper.selectList(new LambdaQueryWrapper<Hospital>()
+        result.put("hotHospitals", hospitalMapper.selectList(new LambdaQueryWrapper<Hospital>()
                 .eq(Hospital::getStatus, 1).orderByAsc(Hospital::getId).last("limit 3"))
                 .stream().map(this::hospitalResourceSummary).collect(Collectors.toList()));
-        result.put("recommendDoctors", doctorMapper.selectList(new LambdaQueryWrapper<Doctor>()
+        result.put("hotDoctors", doctorMapper.selectList(new LambdaQueryWrapper<Doctor>()
                         .eq(Doctor::getStatus, 1).orderByAsc(Doctor::getId).last("limit 3")).stream()
                 .map(item -> doctorSummary(item, hospitalMapper.selectById(item.getHospitalId()), departmentMapper.selectById(item.getDepartmentId())))
                 .collect(Collectors.toList()));
-        result.put("recommendDiseases", diseaseMapper.selectList(new LambdaQueryWrapper<Disease>()
+        result.put("hotDiseases", diseaseMapper.selectList(new LambdaQueryWrapper<Disease>()
                 .orderByAsc(Disease::getId).last("limit 3")).stream().map(this::diseaseSummary).collect(Collectors.toList()));
-        result.put("recommendArticles", articleMapper.selectList(new LambdaQueryWrapper<Article>()
+        result.put("hotArticles", articleMapper.selectList(new LambdaQueryWrapper<Article>()
                 .eq(Article::getStatus, 1).orderByDesc(Article::getPublishTime).last("limit 3"))
                 .stream().map(this::articleSummary).collect(Collectors.toList()));
         return result;
@@ -106,8 +106,7 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
                 .and(safeKeyword != null, wrapper -> wrapper.like(Hospital::getName, safeKeyword)
                         .or().like(Hospital::getAddress, safeKeyword)
                         .or().like(Hospital::getProvince, safeKeyword)
-                        .or().like(Hospital::getCity, safeKeyword)
-                        .or().like(Hospital::getDistrict, safeKeyword));
+                        .or().like(Hospital::getCity, safeKeyword));
         if (normalizedLevel != null) {
             query.in(Hospital::getLevel, levelValues(normalizedLevel));
         }
@@ -249,7 +248,7 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
                 .stream().map(item -> {
                     Map<String, Object> result = new LinkedHashMap<String, Object>();
                     result.put("id", item.getId());
-                    result.put("scheduleDate", item.getScheduleDate());
+                    result.put("date", item.getScheduleDate());
                     result.put("weekDay", weekDay(item.getScheduleDate().getDayOfWeek()));
                     result.put("timeSlot", item.getTimeSlot());
                     result.put("remainCount", item.getRemainCount());
@@ -351,18 +350,10 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         PageResult<Map<String, Object>> doctors = listDoctors(page, pageSize, null, safeKeyword, null);
         PageResult<Map<String, Object>> diseases = listDiseases(page, pageSize, null, safeKeyword);
         PageResult<Map<String, Object>> articles = listArticles(page, pageSize, null, safeKeyword);
-        result.put("hospitalList", hospitals.getRecords());
-        result.put("doctorList", doctors.getRecords());
-        result.put("diseaseList", diseases.getRecords());
-        result.put("articleList", articles.getRecords());
-        result.put("hospitalCount", hospitals.getTotal());
-        result.put("doctorCount", doctors.getTotal());
-        result.put("diseaseCount", diseases.getTotal());
-        result.put("articleCount", articles.getTotal());
-        result.put("hospitalTotal", hospitals.getTotal());
-        result.put("doctorTotal", doctors.getTotal());
-        result.put("diseaseTotal", diseases.getTotal());
-        result.put("articleTotal", articles.getTotal());
+        result.put("hospital", hospitals.getRecords());
+        result.put("doctor", doctors.getRecords());
+        result.put("disease", diseases.getRecords());
+        result.put("article", articles.getRecords());
         Map<String, Object> counts = new LinkedHashMap<String, Object>();
         counts.put("hospital", hospitals.getTotal());
         counts.put("doctor", doctors.getTotal());
@@ -372,18 +363,10 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         if (type != null) {
             String normalizedType = type.trim().toLowerCase(Locale.ROOT);
             Map<String, Object> filtered = new LinkedHashMap<String, Object>();
-            filtered.put("hospitalList", "hospital".equals(normalizedType) ? result.get("hospitalList") : Collections.emptyList());
-            filtered.put("doctorList", "doctor".equals(normalizedType) ? result.get("doctorList") : Collections.emptyList());
-            filtered.put("diseaseList", "disease".equals(normalizedType) ? result.get("diseaseList") : Collections.emptyList());
-            filtered.put("articleList", "article".equals(normalizedType) ? result.get("articleList") : Collections.emptyList());
-            filtered.put("hospitalCount", result.get("hospitalCount"));
-            filtered.put("doctorCount", result.get("doctorCount"));
-            filtered.put("diseaseCount", result.get("diseaseCount"));
-            filtered.put("articleCount", result.get("articleCount"));
-            filtered.put("hospitalTotal", result.get("hospitalTotal"));
-            filtered.put("doctorTotal", result.get("doctorTotal"));
-            filtered.put("diseaseTotal", result.get("diseaseTotal"));
-            filtered.put("articleTotal", result.get("articleTotal"));
+            filtered.put("hospital", "hospital".equals(normalizedType) ? result.get("hospital") : Collections.emptyList());
+            filtered.put("doctor", "doctor".equals(normalizedType) ? result.get("doctor") : Collections.emptyList());
+            filtered.put("disease", "disease".equals(normalizedType) ? result.get("disease") : Collections.emptyList());
+            filtered.put("article", "article".equals(normalizedType) ? result.get("article") : Collections.emptyList());
             filtered.put("counts", counts);
             return filtered;
         }

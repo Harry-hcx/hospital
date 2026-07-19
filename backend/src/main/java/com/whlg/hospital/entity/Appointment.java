@@ -45,8 +45,6 @@ public class Appointment {
      * 医院ID
      */
     private Long hospitalId;
-
-    private Long scheduleId;
     
     /**
      * 就诊人姓名

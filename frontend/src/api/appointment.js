@@ -8,6 +8,10 @@ export function getAppointmentDetail(orderNo) {
   return request.get(`/appointments/${orderNo}`)
 }
 
+export function getAppointmentSuccess(orderNo) {
+  return request.get(`/appointments/${orderNo}/success`)
+}
+
 export function cancelAppointment(orderNo) {
   return request.post(`/appointments/${orderNo}/cancel`, {})
 }

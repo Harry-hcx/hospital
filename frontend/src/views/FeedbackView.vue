@@ -8,7 +8,7 @@
         <div class="form-card">
           <div class="form-group">
             <label>反馈类型</label>
-            <select v-model="form.type">
+            <select v-model="form.feedbackType">
               <option value="">请选择</option>
               <option :value="1">功能异常</option>
               <option :value="2">建议</option>
@@ -53,28 +53,29 @@ const submitting = ref(false)
 const loading = ref(false)
 const loadError = ref('')
 const typeMap = { 1: '功能异常', 2: '建议', 3: '其他' }
-const form = ref({ type: '', content: '' })
+const form = ref({ feedbackType: '', content: '' })
 
 onMounted(async () => {
   loading.value = true
   try {
     const res = await getMyFeedbacks({ page: 1, pageSize: 100 })
     const d = res.data.data || res.data
-    feedbacks.value = d.records || []
+    feedbacks.value = d.list || []
   } catch (e) { loadError.value = '加载反馈记录失败，请稍后重试'; console.error('加载反馈记录失败', e) }
   finally { loading.value = false }
 })
 
 async function handleSubmit() {
+  if (!form.value.feedbackType) { alert('请选择反馈类型'); return }
   if (!form.value.content) { alert('请输入反馈内容'); return }
   submitting.value = true
   try {
     await createFeedback(form.value)
     alert('反馈提交成功')
-    form.value = { type: '', content: '' }
+    form.value = { feedbackType: '', content: '' }
     const res = await getMyFeedbacks({ page: 1, pageSize: 100 })
     const d = res.data.data || res.data
-    feedbacks.value = d.records || []
+    feedbacks.value = d.list || []
   } catch (e) { console.error('提交失败', e); alert('提交失败') }
   finally { submitting.value = false }
 }

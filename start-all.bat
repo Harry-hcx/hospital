@@ -1,43 +1,53 @@
 @echo off
 setlocal
 
-set "PROJECT_ROOT=%~dp0"
-set "BACKEND_DIR=%PROJECT_ROOT%backend"
-set "FRONTEND_DIR=%PROJECT_ROOT%frontend"
+cd /d "%~dp0"
+set "PROJECT_ROOT=%CD%"
 
-if not exist "%BACKEND_DIR%\pom.xml" (
-    echo [ERROR] Backend project not found: "%BACKEND_DIR%"
+if not exist "%PROJECT_ROOT%\backend\pom.xml" (
+    echo [ERROR] backend\pom.xml was not found.
     pause
     exit /b 1
 )
 
-if not exist "%FRONTEND_DIR%\package.json" (
-    echo [ERROR] Frontend project not found: "%FRONTEND_DIR%"
+if not exist "%PROJECT_ROOT%\frontend\package.json" (
+    echo [ERROR] frontend\package.json was not found.
     pause
     exit /b 1
 )
 
-where mvn >nul 2>&1
-if errorlevel 1 (
+where java.exe >nul 2>&1 || (
+    echo [ERROR] Java was not found in PATH.
+    pause
+    exit /b 1
+)
+
+where mvn.cmd >nul 2>&1 || (
     echo [ERROR] Maven was not found in PATH.
-    echo Install Maven or add it to PATH, then run this script again.
     pause
     exit /b 1
 )
 
-where npm.cmd >nul 2>&1
-if errorlevel 1 (
+where node.exe >nul 2>&1 || (
+    echo [ERROR] Node.js was not found in PATH.
+    pause
+    exit /b 1
+)
+
+where npm.cmd >nul 2>&1 || (
     echo [ERROR] npm was not found in PATH.
-    echo Install Node.js or add it to PATH, then run this script again.
     pause
     exit /b 1
 )
 
-start "Hospital Backend - 8080" cmd /k "cd /d "%BACKEND_DIR%" && mvn spring-boot:run"
-start "Hospital Frontend - 3000" cmd /k "cd /d "%FRONTEND_DIR%" && npm.cmd run dev"
+echo Starting backend at http://127.0.0.1:8080 ...
+start "Hospital Backend" /D "%PROJECT_ROOT%\backend" cmd.exe /k "mvn.cmd spring-boot:run"
 
-echo Backend:  http://localhost:8080
-echo Frontend: http://localhost:3000
-echo Two terminal windows have been opened. Close those windows to stop the services.
+echo Starting frontend at http://127.0.0.1:3000 ...
+start "Hospital Frontend" /D "%PROJECT_ROOT%\frontend" cmd.exe /k "if not exist node_modules npm.cmd install && npm.cmd run dev -- --host 127.0.0.1 --port 3000"
 
-endlocal
+echo.
+echo Frontend: http://127.0.0.1:3000
+echo Backend : http://127.0.0.1:8080
+echo Close the two service windows to stop the project.
+exit /b 0

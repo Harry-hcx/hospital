@@ -84,7 +84,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         User user = userMapper.selectById(requireUserId());
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("id", user.getId());
-        result.put("name", user.getRealName());
+        result.put("realName", user.getRealName());
         result.put("phone", user.getPhone());
         result.put("email", user.getEmail());
         result.put("avatar", user.getAvatar());
@@ -98,7 +98,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         check(request != null, "请求参数不能为空");
         check(request.getBirthday() == null || !request.getBirthday().isAfter(LocalDate.now()), "生日不能晚于今天");
         User user = userMapper.selectById(requireUserId());
-        user.setRealName(request.getName());
+        user.setRealName(request.getRealName());
         user.setGender(request.getGender());
         user.setBirthday(request.getBirthday());
         user.setEmail(request.getEmail());
@@ -185,12 +185,12 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         if (Integer.valueOf(1).equals(request.getOrderType())) {
             com.whlg.hospital.entity.Appointment appointment = appointmentMapper.selectById(request.getOrderId());
             check(appointment != null && userId.equals(appointment.getUserId())
-                    && Integer.valueOf(3).equals(appointment.getStatus())
+                    && (Integer.valueOf(2).equals(appointment.getStatus()) || Integer.valueOf(3).equals(appointment.getStatus()))
                     && request.getDoctorId().equals(appointment.getDoctorId()), "订单不可评价");
         } else if (Integer.valueOf(2).equals(request.getOrderType())) {
             com.whlg.hospital.entity.Consult consult = consultMapper.selectById(request.getOrderId());
             check(consult != null && userId.equals(consult.getUserId())
-                    && Integer.valueOf(4).equals(consult.getStatus())
+                    && (Integer.valueOf(2).equals(consult.getStatus()) || Integer.valueOf(4).equals(consult.getStatus()))
                     && request.getDoctorId().equals(consult.getDoctorId()), "订单不可评价");
         } else {
             throw new ApiException(StatusCode.BAD_REQUEST, "订单类型不正确");
@@ -264,11 +264,11 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
 
     @Override
     public Map<String, Object> createFeedback(CreateFeedbackRequest request) {
-        check(request != null && request.getType() != null && request.getType() >= 1 && request.getType() <= 3
+        check(request != null && request.getFeedbackType() != null && request.getFeedbackType() >= 1 && request.getFeedbackType() <= 3
                 && request.getContent() != null && !request.getContent().trim().isEmpty(), "反馈参数不正确");
         Feedback feedback = new Feedback();
         feedback.setUserId(requireUserId());
-        feedback.setFeedbackType(request.getType());
+        feedback.setFeedbackType(request.getFeedbackType());
         feedback.setContent(request.getContent());
         feedback.setImages(request.getImages() == null ? null : String.join(",", request.getImages()));
         feedback.setStatus(1);
@@ -288,7 +288,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
                         .eq(Follow::getUserId, userId)
                         .eq(type != null, Follow::getFollowType, type)
                         .orderByDesc(Follow::getCreateTime))
-                .stream().map(this::followMap).collect(Collectors.toList()), page, pageSize);
+                .stream().map(this::followMap).filter(item -> item != null).collect(Collectors.toList()), page, pageSize);
     }
 
     @Override
@@ -336,9 +336,10 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
                 .eq(Follow::getUserId, userId)
                 .eq(Follow::getFollowType, type)
                 .eq(Follow::getFollowId, targetId));
-        check(follow != null, "关注记录不存在");
-        followMapper.deleteById(follow.getId());
-        updateFollowCount(type, targetId, -1);
+        if (follow != null) {
+            followMapper.deleteById(follow.getId());
+            updateFollowCount(type, targetId, -1);
+        }
     }
 
     private void updateFollowCount(Integer type, Long targetId, int delta) {
@@ -419,11 +420,23 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         result.put("followId", item.getFollowId());
         result.put("createTime", item.getCreateTime());
         if (Integer.valueOf(1).equals(item.getFollowType())) {
-            result.put("name", hospitalMapper.selectById(item.getFollowId()).getName());
+            com.whlg.hospital.entity.Hospital hospital = hospitalMapper.selectById(item.getFollowId());
+            if (hospital == null) {
+                return null;
+            }
+            result.put("name", hospital.getName());
         } else if (Integer.valueOf(2).equals(item.getFollowType())) {
-            result.put("name", doctorMapper.selectById(item.getFollowId()).getName());
+            com.whlg.hospital.entity.Doctor doctor = doctorMapper.selectById(item.getFollowId());
+            if (doctor == null) {
+                return null;
+            }
+            result.put("name", doctor.getName());
         } else if (Integer.valueOf(3).equals(item.getFollowType())) {
-            result.put("name", diseaseMapper.selectById(item.getFollowId()).getName());
+            com.whlg.hospital.entity.Disease disease = diseaseMapper.selectById(item.getFollowId());
+            if (disease == null) {
+                return null;
+            }
+            result.put("name", disease.getName());
         } else {
             throw new ApiException(StatusCode.BAD_REQUEST, "非法关注类型");
         }

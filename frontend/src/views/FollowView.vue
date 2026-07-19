@@ -53,7 +53,7 @@ async function fetchData() {
   try {
     const res = await getMyFollows({ type: activeType.value, page: page.value, pageSize: pageSize.value })
     const d = res.data.data || res.data
-    list.value = d.records || []
+    list.value = d.list || []
     total.value = d.total || 0
   } catch (e) { console.error('加载关注列表失败', e) }
 }

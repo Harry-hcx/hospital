@@ -45,7 +45,7 @@ async function fetchData() {
   try {
     const res = await getMessages({ page: page.value, pageSize: pageSize.value })
     const d = res.data.data || res.data
-    messages.value = d.records || []
+    messages.value = d.list || []
     total.value = d.total || 0
   } catch (e) { loadError.value = '加载消息失败，请稍后重试'; console.error('加载消息失败', e) }
   finally { loading.value = false }

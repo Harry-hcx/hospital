@@ -28,14 +28,14 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
-import { getAppointmentDetail } from '@/api/appointment'
+import { getAppointmentSuccess } from '@/api/appointment'
 
 const route = useRoute()
 const order = ref({})
 
 onMounted(async () => {
   try {
-    const res = await getAppointmentDetail(route.params.orderNo)
+    const res = await getAppointmentSuccess(route.params.orderNo)
     order.value = res?.data || {}
   } catch (e) { console.error('加载预约结果失败', e) }
 })

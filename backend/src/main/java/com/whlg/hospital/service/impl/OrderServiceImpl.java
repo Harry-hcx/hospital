@@ -71,26 +71,30 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     @Override
     @Transactional
     public Map<String, Object> createAppointment(CreateAppointmentRequest request) {
-        check(request != null && request.getScheduleId() != null && request.getFamilyMemberId() != null, "预约参数不能为空");
+        check(request != null && request.getDoctorId() != null && request.getHospitalId() != null
+                && request.getPatientId() != null && request.getAppointmentDate() != null
+                && request.getAppointmentTime() != null && !request.getAppointmentTime().trim().isEmpty(), "预约参数不能为空");
         Long userId = requireUserId();
-        Schedule schedule = scheduleMapper.selectById(request.getScheduleId());
-        FamilyMember familyMember = familyMemberMapper.selectById(request.getFamilyMemberId());
-        check(schedule != null, "排班不存在");
+        Doctor doctor = doctorMapper.selectById(request.getDoctorId());
+        FamilyMember familyMember = familyMemberMapper.selectById(request.getPatientId());
+        check(doctor != null && Integer.valueOf(1).equals(doctor.getStatus()), "医生不可预约");
+        check(request.getHospitalId().equals(doctor.getHospitalId()), "医生不属于所选医院");
         check(familyMember != null && userId.equals(familyMember.getUserId()), "就诊人不存在");
+        Schedule schedule = resolveSchedule(request, doctor);
         check(Integer.valueOf(1).equals(schedule.getStatus())
                 && schedule.getScheduleDate() != null
                 && !schedule.getScheduleDate().isBefore(LocalDate.now()), "排班不可预约");
-        Doctor doctor = doctorMapper.selectById(schedule.getDoctorId());
-        check(doctor != null && Integer.valueOf(1).equals(doctor.getStatus()), "医生不可预约");
-        check(doctor.getHospitalId() != null && doctor.getHospitalId().equals(schedule.getHospitalId())
-                && doctor.getDepartmentId() != null && doctor.getDepartmentId().equals(schedule.getDepartmentId()),
+        check(doctor.getHospitalId() != null && doctor.getHospitalId().equals(schedule.getHospitalId()),
                 "排班归属不一致");
         check(schedule.getRemainCount() != null && schedule.getRemainCount() > 0
                 && schedule.getTotalCount() != null && schedule.getTotalCount() > 0
                 && schedule.getRemainCount() <= schedule.getTotalCount(), "号源数据异常");
         Long existing = appointmentMapper.selectCount(new LambdaQueryWrapper<Appointment>()
                 .eq(Appointment::getUserId, userId)
-                .eq(Appointment::getScheduleId, schedule.getId())
+                .eq(Appointment::getDoctorId, doctor.getId())
+                .eq(Appointment::getHospitalId, doctor.getHospitalId())
+                .eq(Appointment::getAppointmentDate, schedule.getScheduleDate())
+                .eq(Appointment::getAppointmentTime, schedule.getTimeSlot())
                 .ne(Appointment::getStatus, 4));
         check(existing == 0, "该排班已预约");
 
@@ -110,7 +114,6 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         appointment.setPatientPhone(familyMember.getPhone());
         appointment.setPatientIdCard(familyMember.getIdCard());
         appointment.setPatientGender(familyMember.getGender());
-        appointment.setScheduleId(schedule.getId());
         appointment.setPatientAge(familyMember.getBirthday() == null ? null
                 : Period.between(familyMember.getBirthday(), schedule.getScheduleDate()).getYears());
         appointment.setAppointmentDate(schedule.getScheduleDate());
@@ -125,6 +128,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("orderNo", appointment.getOrderNo());
+        result.put("amount", appointment.getAmount());
         return result;
     }
 
@@ -132,10 +136,11 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     public Map<String, Object> getAppointment(String orderNo) {
         Appointment appointment = requireOwnedAppointment(orderNo);
         Doctor doctor = doctorMapper.selectById(appointment.getDoctorId());
+        com.whlg.hospital.entity.Hospital hospital = hospitalMapper.selectById(appointment.getHospitalId());
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("orderNo", appointment.getOrderNo());
-        result.put("doctor", doctor.getName());
-        result.put("hospital", hospitalMapper.selectById(appointment.getHospitalId()).getName());
+        result.put("doctor", doctor == null ? "医生已下线" : doctor.getName());
+        result.put("hospital", hospital == null ? "医院已下线" : hospital.getName());
         result.put("date", appointment.getAppointmentDate());
         result.put("timeSlot", appointment.getAppointmentTime());
         result.put("patientName", appointment.getPatientName());
@@ -150,10 +155,11 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     public void cancelAppointment(String orderNo) {
         Appointment appointment = requireOwnedAppointment(orderNo);
         check(Integer.valueOf(1).equals(appointment.getStatus()), "当前订单不可取消");
-        Schedule schedule = appointment.getScheduleId() == null ? scheduleMapper.selectOne(new LambdaQueryWrapper<Schedule>()
+        Schedule schedule = scheduleMapper.selectOne(new LambdaQueryWrapper<Schedule>()
                 .eq(Schedule::getDoctorId, appointment.getDoctorId())
+                .eq(Schedule::getHospitalId, appointment.getHospitalId())
                 .eq(Schedule::getScheduleDate, appointment.getAppointmentDate())
-                .eq(Schedule::getTimeSlot, appointment.getAppointmentTime())) : scheduleMapper.selectById(appointment.getScheduleId());
+                .eq(Schedule::getTimeSlot, appointment.getAppointmentTime()));
         check(schedule != null, "对应排班不存在");
         check(schedule.getTotalCount() != null && schedule.getRemainCount() != null, "排班号源数据异常");
         appointment.setStatus(4);
@@ -171,7 +177,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     public Map<String, Object> payAppointment(String orderNo, PayRequest request) {
         Appointment appointment = requireOwnedAppointment(orderNo);
         check(Integer.valueOf(1).equals(appointment.getStatus()), "当前订单不可支付");
-        validatePayType(request == null ? null : request.getPayType());
+        int payMethod = resolvePayMethod(request == null ? null : request.getPayMethod());
         appointment.setStatus(2);
         appointment.setPayTime(LocalDateTime.now());
         appointment.setUpdateTime(LocalDateTime.now());
@@ -185,7 +191,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
             paymentFlow.setActualAmount(appointment.getAmount());
             paymentFlow.setCreateTime(LocalDateTime.now());
         }
-        paymentFlow.setPayMethod(request.getPayType());
+        paymentFlow.setPayMethod(payMethod);
         paymentFlow.setThirdPartyTradeNo(nextOrderNo("TP"));
         paymentFlow.setPayStatus(1);
         paymentFlow.setPaySuccessTime(LocalDateTime.now());
@@ -211,9 +217,10 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                     result.put("orderNo", item.getOrderNo());
                     result.put("doctorId", item.getDoctorId());
                     result.put("hospitalId", item.getHospitalId());
-                    result.put("scheduleId", item.getScheduleId());
-                    result.put("doctorName", doctorMapper.selectById(item.getDoctorId()).getName());
-                    result.put("hospitalName", hospitalMapper.selectById(item.getHospitalId()).getName());
+                    Doctor doctor = doctorMapper.selectById(item.getDoctorId());
+                    com.whlg.hospital.entity.Hospital hospital = hospitalMapper.selectById(item.getHospitalId());
+                    result.put("doctorName", doctor == null ? "医生已下线" : doctor.getName());
+                    result.put("hospitalName", hospital == null ? "医院已下线" : hospital.getName());
                     result.put("appointmentDate", item.getAppointmentDate());
                     result.put("appointmentTime", item.getAppointmentTime());
                     result.put("patientName", item.getPatientName());
@@ -227,23 +234,26 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     @Override
     @Transactional
     public Map<String, Object> createConsult(CreateConsultRequest request) {
-        check(request != null && request.getDoctorId() != null && request.getFamilyMemberId() != null, "咨询参数不能为空");
+        check(request != null && request.getDoctorId() != null
+                && request.getPatientName() != null && !request.getPatientName().trim().isEmpty()
+                && request.getPatientPhone() != null && !request.getPatientPhone().trim().isEmpty()
+                && request.getAppointmentTime() != null && request.getDuration() != null, "咨询参数不能为空");
+        check(request.getDuration() > 0 && request.getDuration() <= 180, "咨询时长不正确");
+        check(!request.getAppointmentTime().isBefore(LocalDateTime.now()), "咨询时间不能早于当前时间");
         Long userId = requireUserId();
         Doctor doctor = doctorMapper.selectById(request.getDoctorId());
-        FamilyMember familyMember = familyMemberMapper.selectById(request.getFamilyMemberId());
         check(doctor != null && Integer.valueOf(1).equals(doctor.getStatus()), "医生不可咨询");
-        check(familyMember != null && userId.equals(familyMember.getUserId()), "就诊人不存在");
         check(doctor.getPrice() != null && doctor.getPrice().compareTo(BigDecimal.ZERO) >= 0, "咨询价格异常");
 
         Consult consult = new Consult();
         consult.setOrderNo(nextOrderNo("CO"));
         consult.setUserId(userId);
         consult.setDoctorId(doctor.getId());
-        consult.setPatientName(familyMember.getName());
-        consult.setPatientPhone(familyMember.getPhone());
+        consult.setPatientName(request.getPatientName().trim());
+        consult.setPatientPhone(request.getPatientPhone().trim());
         consult.setDiseaseDesc(request.getDiseaseDesc());
-        consult.setAppointmentTime(LocalDateTime.now().plusDays(1));
-        consult.setDuration(15);
+        consult.setAppointmentTime(request.getAppointmentTime());
+        consult.setDuration(request.getDuration());
         consult.setAmount(doctor.getPrice());
         consult.setStatus(1);
         consult.setCreateTime(LocalDateTime.now());
@@ -263,10 +273,9 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     public Map<String, Object> getConsult(String orderNo) {
         Consult consult = requireOwnedConsult(orderNo);
         Doctor doctor = doctorMapper.selectById(consult.getDoctorId());
-        check(doctor != null, "医生不存在");
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("orderNo", consult.getOrderNo());
-        result.put("doctor", doctor.getName());
+        result.put("doctor", doctor == null ? "医生已下线" : doctor.getName());
         result.put("patientName", consult.getPatientName());
         result.put("status", consult.getStatus());
         result.put("fee", consult.getAmount());
@@ -291,7 +300,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     public Map<String, Object> payConsult(String orderNo, PayRequest request) {
         Consult consult = requireOwnedConsult(orderNo);
         check(Integer.valueOf(1).equals(consult.getStatus()), "当前咨询不可支付");
-        validatePayType(request == null ? null : request.getPayType());
+        int payMethod = resolvePayMethod(request == null ? null : request.getPayMethod());
         consult.setStatus(2);
         consult.setPayTime(LocalDateTime.now());
         consult.setUpdateTime(LocalDateTime.now());
@@ -305,7 +314,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
             paymentFlow.setActualAmount(consult.getAmount());
             paymentFlow.setCreateTime(LocalDateTime.now());
         }
-        paymentFlow.setPayMethod(request.getPayType());
+        paymentFlow.setPayMethod(payMethod);
         paymentFlow.setThirdPartyTradeNo(nextOrderNo("TP"));
         paymentFlow.setPayStatus(1);
         paymentFlow.setPaySuccessTime(LocalDateTime.now());
@@ -330,7 +339,8 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                     result.put("id", item.getId());
                     result.put("orderNo", item.getOrderNo());
                     result.put("doctorId", item.getDoctorId());
-                    result.put("doctorName", doctorMapper.selectById(item.getDoctorId()).getName());
+                    Doctor doctor = doctorMapper.selectById(item.getDoctorId());
+                    result.put("doctorName", doctor == null ? "医生已下线" : doctor.getName());
                     result.put("patientName", item.getPatientName());
                     result.put("fee", item.getAmount());
                     result.put("duration", item.getDuration());
@@ -345,12 +355,12 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     public Map<String, Object> createPayment(CreatePaymentRequest request) {
         check(request != null, "请求体不能为空");
         check(request.getBusinessOrderNo() != null && !request.getBusinessOrderNo().trim().isEmpty(), "业务订单号不能为空");
-        check(request.getAmount() != null && request.getAmount().compareTo(BigDecimal.ZERO) > 0, "支付金额必须大于0");
+        check(request.getActualAmount() != null && request.getActualAmount().compareTo(BigDecimal.ZERO) > 0, "支付金额必须大于0");
         int businessType = resolveBusinessType(request.getBusinessType());
-        validatePayType(request.getPayType());
+        int payMethod = resolvePayMethod(request.getPayMethod());
         ensureBusinessOwner(request.getBusinessOrderNo(), businessType);
         BigDecimal businessAmount = getBusinessAmount(request.getBusinessOrderNo(), businessType);
-        check(businessAmount.compareTo(request.getAmount()) == 0, "支付金额不匹配");
+        check(businessAmount.compareTo(request.getActualAmount()) == 0, "支付金额不匹配");
 
         PaymentFlow paymentFlow = paymentFlowMapper.selectOne(new LambdaQueryWrapper<PaymentFlow>().eq(PaymentFlow::getBusinessOrderNo, request.getBusinessOrderNo()));
         if (paymentFlow == null) {
@@ -359,7 +369,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
             paymentFlow.setBusinessType(businessType);
             paymentFlow.setCreateTime(LocalDateTime.now());
         }
-        paymentFlow.setPayMethod(request.getPayType());
+        paymentFlow.setPayMethod(payMethod);
         paymentFlow.setActualAmount(businessAmount);
         paymentFlow.setPayStatus(0);
         paymentFlow.setThirdPartyTradeNo(nextOrderNo("PAY"));
@@ -404,8 +414,8 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("paymentNo", paymentFlow.getThirdPartyTradeNo());
         result.put("businessOrderNo", paymentFlow.getBusinessOrderNo());
-        result.put("amount", paymentFlow.getActualAmount());
-        result.put("payType", paymentFlow.getPayMethod());
+        result.put("actualAmount", paymentFlow.getActualAmount());
+        result.put("payMethod", paymentMethodName(paymentFlow.getPayMethod()));
         result.put("payStatus", paymentFlow.getPayStatus());
         result.put("payTime", paymentFlow.getPaySuccessTime());
         return result;
@@ -504,8 +514,47 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         throw new ApiException(StatusCode.BAD_REQUEST, "业务类型不支持");
     }
 
-    private void validatePayType(Integer payType) {
-        check(payType != null && (Integer.valueOf(1).equals(payType) || Integer.valueOf(2).equals(payType)), "支付方式不支持");
+    private int resolvePayMethod(String payMethod) {
+        if ("wechat".equalsIgnoreCase(payMethod)) {
+            return 1;
+        }
+        if ("alipay".equalsIgnoreCase(payMethod)) {
+            return 2;
+        }
+        throw new ApiException(StatusCode.BAD_REQUEST, "支付方式不支持");
+    }
+
+    private String paymentMethodName(Integer payMethod) {
+        return Integer.valueOf(1).equals(payMethod) ? "wechat" : "alipay";
+    }
+
+    private Schedule resolveSchedule(CreateAppointmentRequest request, Doctor doctor) {
+        List<Schedule> schedules = scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
+                .eq(Schedule::getDoctorId, request.getDoctorId())
+                .eq(Schedule::getHospitalId, request.getHospitalId())
+                .eq(Schedule::getScheduleDate, request.getAppointmentDate())
+                .eq(Schedule::getStatus, 1)
+                .gt(Schedule::getRemainCount, 0)
+                .orderByAsc(Schedule::getTimeSlot));
+        String requestedTime = request.getAppointmentTime().trim();
+        Schedule matched = schedules.stream().filter(item -> requestedTime.equals(item.getTimeSlot())).findFirst().orElse(null);
+        if (matched == null && ("上午".equals(requestedTime) || "下午".equals(requestedTime) || "晚上".equals(requestedTime))) {
+            matched = schedules.stream().filter(item -> matchesPeriod(item.getTimeSlot(), requestedTime)).findFirst().orElse(null);
+        }
+        check(matched != null, "排班不存在");
+        return matched;
+    }
+
+    private boolean matchesPeriod(String timeSlot, String period) {
+        if (timeSlot == null || timeSlot.length() < 2) {
+            return false;
+        }
+        try {
+            int hour = Integer.parseInt(timeSlot.substring(0, 2));
+            return "上午".equals(period) ? hour < 12 : "下午".equals(period) ? hour >= 12 && hour < 18 : hour >= 18;
+        } catch (NumberFormatException ignored) {
+            return timeSlot.contains(period);
+        }
     }
 
     private String nextOrderNo(String prefix) {

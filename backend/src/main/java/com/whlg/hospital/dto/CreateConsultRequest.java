@@ -1,10 +1,17 @@
 package com.whlg.hospital.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.time.LocalDateTime;
+
 public class CreateConsultRequest {
 
     private Long doctorId;
-    private Long familyMemberId;
+    private String patientName;
+    private String patientPhone;
     private String diseaseDesc;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime appointmentTime;
+    private Integer duration;
 
     public Long getDoctorId() {
         return doctorId;
@@ -14,12 +21,20 @@ public class CreateConsultRequest {
         this.doctorId = doctorId;
     }
 
-    public Long getFamilyMemberId() {
-        return familyMemberId;
+    public String getPatientName() {
+        return patientName;
     }
 
-    public void setFamilyMemberId(Long familyMemberId) {
-        this.familyMemberId = familyMemberId;
+    public void setPatientName(String patientName) {
+        this.patientName = patientName;
+    }
+
+    public String getPatientPhone() {
+        return patientPhone;
+    }
+
+    public void setPatientPhone(String patientPhone) {
+        this.patientPhone = patientPhone;
     }
 
     public String getDiseaseDesc() {
@@ -28,5 +43,21 @@ public class CreateConsultRequest {
 
     public void setDiseaseDesc(String diseaseDesc) {
         this.diseaseDesc = diseaseDesc;
+    }
+
+    public LocalDateTime getAppointmentTime() {
+        return appointmentTime;
+    }
+
+    public void setAppointmentTime(LocalDateTime appointmentTime) {
+        this.appointmentTime = appointmentTime;
+    }
+
+    public Integer getDuration() {
+        return duration;
+    }
+
+    public void setDuration(Integer duration) {
+        this.duration = duration;
     }
 }

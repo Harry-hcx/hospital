@@ -22,7 +22,9 @@ describe('RegisterView', () => {
       global: { stubs: { 'router-link': { template: '<a><slot /></a>' } } },
     })
     expect(wrapper.text()).toContain('用户注册')
-    expect(wrapper.text()).toContain('获取验证码')
+    expect(wrapper.text()).toContain('用户名')
+    expect(wrapper.text()).not.toContain('验证码')
+    expect(wrapper.text()).not.toContain('确认密码')
   })
 
   it('手机号格式错误阻止提交', async () => {
@@ -30,19 +32,8 @@ describe('RegisterView', () => {
       global: { stubs: { 'router-link': { template: '<a><slot /></a>' } } },
     })
     const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('123')
-    await wrapper.find('form').trigger('submit.prevent')
-    expect(wrapper.exists()).toBe(true)
-  })
-
-  it('两次密码不一致', async () => {
-    const wrapper = mount(RegisterView, {
-      global: { stubs: { 'router-link': { template: '<a><slot /></a>' } } },
-    })
-    const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('13800001111')
-    await inputs[2].setValue('123456')
-    await inputs[3].setValue('654321')
+    await inputs[0].setValue('test-user')
+    await inputs[1].setValue('123')
     await wrapper.find('form').trigger('submit.prevent')
     expect(wrapper.exists()).toBe(true)
   })
@@ -52,20 +43,20 @@ describe('RegisterView', () => {
       global: { stubs: { 'router-link': { template: '<a><slot /></a>' } } },
     })
     const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('13800001111')
-    await inputs[1].setValue('123456')
+    await inputs[0].setValue('test-user')
+    await inputs[1].setValue('13800001111')
     await inputs[2].setValue('123456')
-    await inputs[3].setValue('123456')
     await wrapper.find('select').setValue('1')
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
     expect(wrapper.exists()).toBe(true)
-    expect(registerApi).toHaveBeenCalledWith(expect.objectContaining({
+    expect(registerApi).toHaveBeenCalledWith({
+      username: 'test-user',
       phone: '13800001111',
-      captcha: '123456',
       password: '123456',
-      confirmPassword: '123456',
+      realName: undefined,
+      email: undefined,
       gender: 1,
-    }))
+    })
   })
 })

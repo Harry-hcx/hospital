@@ -23,7 +23,7 @@
           <label>选择排班</label>
           <div class="schedule-options">
             <div class="schedule-option" v-for="s in schedules" :key="s.id" :class="{ active: form.scheduleId === s.id }" @click="form.scheduleId = s.id">
-              <div>{{ s.scheduleDate }}</div>
+              <div>{{ s.date }}</div>
               <div>{{ s.timeSlot }}</div>
               <div class="fee">¥{{ s.registrationPrice }}</div>
               <div>剩余 {{ s.remainCount }}</div>
@@ -103,11 +103,16 @@ async function handleSubmit() {
   if (!doctor.value.id) { alert('医生信息未加载完成'); return }
   if (!form.value.scheduleId) { alert('请选择排班'); return }
   if (!form.value.familyMemberId) { alert('请选择就诊人'); return }
+  const selectedSchedule = schedules.value.find((schedule) => Number(schedule.id) === Number(form.value.scheduleId))
+  if (!selectedSchedule) { alert('所选排班不存在，请重新选择'); return }
   submitting.value = true
   try {
     const res = await createAppointment({
-      scheduleId: form.value.scheduleId,
-      familyMemberId: Number(form.value.familyMemberId),
+      doctorId: Number(doctor.value.id),
+      hospitalId: Number(doctor.value.hospitalId),
+      patientId: Number(form.value.familyMemberId),
+      appointmentDate: selectedSchedule.date,
+      appointmentTime: selectedSchedule.timeSlot,
       diseaseDesc: form.value.diseaseDesc
     })
     const d = res?.data || {}

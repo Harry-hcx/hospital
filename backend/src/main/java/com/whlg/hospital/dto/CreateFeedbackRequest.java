@@ -4,16 +4,16 @@ import java.util.List;
 
 public class CreateFeedbackRequest {
 
-    private Integer type;
+    private Integer feedbackType;
     private String content;
     private List<String> images;
 
-    public Integer getType() {
-        return type;
+    public Integer getFeedbackType() {
+        return feedbackType;
     }
 
-    public void setType(Integer type) {
-        this.type = type;
+    public void setFeedbackType(Integer feedbackType) {
+        this.feedbackType = feedbackType;
     }
 
     public String getContent() {

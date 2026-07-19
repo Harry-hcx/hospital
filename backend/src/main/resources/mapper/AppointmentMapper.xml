@@ -8,7 +8,6 @@
         <result column="user_id" property="userId"/>
         <result column="doctor_id" property="doctorId"/>
         <result column="hospital_id" property="hospitalId"/>
-        <result column="schedule_id" property="scheduleId"/>
         <result column="patient_name" property="patientName"/>
         <result column="patient_phone" property="patientPhone"/>
         <result column="patient_id_card" property="patientIdCard"/>
@@ -25,7 +24,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, order_no, user_id, doctor_id, hospital_id, schedule_id, patient_name, patient_phone, patient_id_card, patient_gender, patient_age, appointment_date, appointment_time, disease_desc, amount, status, pay_time, create_time, update_time
+        id, order_no, user_id, doctor_id, hospital_id, patient_name, patient_phone, patient_id_card, patient_gender, patient_age, appointment_date, appointment_time, disease_desc, amount, status, pay_time, create_time, update_time
     </sql>
 
     <select id="selectById" resultMap="BaseResultMap" parameterType="java.lang.Long">
@@ -38,9 +37,9 @@
 
     <insert id="insert" parameterType="com.whlg.hospital.entity.Appointment" useGeneratedKeys="true" keyProperty="id">
         insert into t_appointment (
-            order_no, user_id, doctor_id, hospital_id, schedule_id, patient_name, patient_phone, patient_id_card, patient_gender, patient_age, appointment_date, appointment_time, disease_desc, amount, status, pay_time, create_time, update_time
+            order_no, user_id, doctor_id, hospital_id, patient_name, patient_phone, patient_id_card, patient_gender, patient_age, appointment_date, appointment_time, disease_desc, amount, status, pay_time, create_time, update_time
         ) values (
-            #{orderNo}, #{userId}, #{doctorId}, #{hospitalId}, #{scheduleId}, #{patientName}, #{patientPhone}, #{patientIdCard}, #{patientGender}, #{patientAge}, #{appointmentDate}, #{appointmentTime}, #{diseaseDesc}, #{amount}, #{status}, #{payTime}, #{createTime}, #{updateTime}
+            #{orderNo}, #{userId}, #{doctorId}, #{hospitalId}, #{patientName}, #{patientPhone}, #{patientIdCard}, #{patientGender}, #{patientAge}, #{appointmentDate}, #{appointmentTime}, #{diseaseDesc}, #{amount}, #{status}, #{payTime}, #{createTime}, #{updateTime}
         )
     </insert>
 
@@ -50,7 +49,6 @@
             user_id = #{et.userId},
             doctor_id = #{et.doctorId},
             hospital_id = #{et.hospitalId},
-            schedule_id = #{et.scheduleId},
             patient_name = #{et.patientName},
             patient_phone = #{et.patientPhone},
             patient_id_card = #{et.patientIdCard},

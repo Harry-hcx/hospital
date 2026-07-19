@@ -41,7 +41,8 @@ export function getMyFollows(params) {
 }
 
 export function createFollow(type, id) {
-  return request.post(`/follow/${type}/${id}`, {})
+  const resource = { 1: 'hospital', 2: 'doctor', 3: 'disease' }[type]
+  return request.post(`/follow/${resource}/${id}`, {})
 }
 
 export function deleteFollow(type, id) {
@@ -59,7 +60,7 @@ export function markMessageRead(id) {
 
 // 反馈
 export function getMyFeedbacks(params) {
-  return request.get('/feedbacks', { params })
+  return request.get('/feedbacks/my', { params })
 }
 
 export function createFeedback(data) {

@@ -83,10 +83,10 @@ async function fetchData() {
       getMyReviews({ page: 1, pageSize: 1000 }),
     ])
     const d = res.data.data || res.data
-    orders.value = d.records || []
+    orders.value = d.list || []
     total.value = d.total || 0
     const reviewData = reviewRes.data.data || reviewRes.data
-    reviewedOrderIds.value = new Set((reviewData.records || [])
+    reviewedOrderIds.value = new Set((reviewData.list || [])
       .filter((item) => item.orderType === 2)
       .map((item) => item.orderId))
   } catch (e) { console.error('加载咨询列表失败', e) }

@@ -85,7 +85,7 @@ async function fetchData() {
   try {
     const res = await getDoctors({ page: page.value, pageSize: pageSize.value, ...filters.value })
     const d = res?.data || {}
-    doctors.value = d.records || []
+    doctors.value = d.list || []
     total.value = d.total || 0
   } catch (e) {
     error.value = '医生列表加载失败，请稍后重试'

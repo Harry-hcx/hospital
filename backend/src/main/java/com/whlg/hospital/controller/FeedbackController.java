@@ -23,7 +23,7 @@ public class FeedbackController {
         this.userCenterService = userCenterService;
     }
 
-    @GetMapping
+    @GetMapping({"", "/my"})
     public R<PageResult<Map<String, Object>>> list(@RequestParam(required = false) Integer page,
                                                    @RequestParam(required = false) Integer pageSize) {
         return R.ok(userCenterService.listFeedbacks(page, pageSize));

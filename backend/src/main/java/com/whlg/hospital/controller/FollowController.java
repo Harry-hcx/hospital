@@ -50,14 +50,39 @@ public class FollowController {
         return R.ok(result);
     }
 
+    @PostMapping("/hospital/{id}")
+    public R<Map<String, Object>> followHospital(@PathVariable("id") Long id) {
+        return create(1, id);
+    }
+
+    @DeleteMapping("/hospital/{id}")
+    public R<Object> unfollowHospital(@PathVariable("id") Long id) {
+        return delete(1, id);
+    }
+
+    @PostMapping("/doctor/{id}")
+    public R<Map<String, Object>> followDoctor(@PathVariable("id") Long id) {
+        return create(2, id);
+    }
+
+    @DeleteMapping("/doctor/{id}")
+    public R<Object> unfollowDoctor(@PathVariable("id") Long id) {
+        return delete(2, id);
+    }
+
+    @PostMapping("/disease/{id}")
+    public R<Map<String, Object>> followDisease(@PathVariable("id") Long id) {
+        return create(3, id);
+    }
+
+    @DeleteMapping("/disease/{id}")
+    public R<Object> unfollowDisease(@PathVariable("id") Long id) {
+        return delete(3, id);
+    }
+
     @DeleteMapping("/{type}/{id}")
     public R<Object> delete(@PathVariable("type") Integer type, @PathVariable("id") Long id) {
-        PageResult<Map<String, Object>> follows = userCenterService.listMyFollows(type, 1, 1000);
-        boolean following = follows.getRecords().stream()
-                .anyMatch(item -> id.equals(item.get("followId")));
-        if (following) {
-            userCenterService.deleteFollow(type, id);
-        }
+        userCenterService.deleteFollow(type, id);
         return R.ok();
     }
 }

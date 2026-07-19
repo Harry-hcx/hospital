@@ -71,7 +71,7 @@ async function fetchData() {
   try {
     const res = await getDiseases({ page: page.value, pageSize: pageSize.value, ...filters.value })
     const d = res.data.data || res.data
-    diseases.value = d.records || []
+    diseases.value = d.list || []
     total.value = d.total || 0
   } catch (e) {
     error.value = '疾病列表加载失败，请稍后重试'

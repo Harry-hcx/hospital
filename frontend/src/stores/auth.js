@@ -34,7 +34,7 @@ export const useAuthStore = defineStore('auth', {
     async fetchUser() {
       try {
         const res = await getMeApi()
-        this.userInfo = res.data.userInfo
+        this.userInfo = res.data
         localStorage.setItem('userInfo', JSON.stringify(this.userInfo))
       } catch {
         this.clearAuth()

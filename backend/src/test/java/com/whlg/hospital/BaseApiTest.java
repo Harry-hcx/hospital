@@ -54,10 +54,9 @@ public abstract class BaseApiTest {
 
     protected String registerAndLogin(String phone, String password) throws Exception {
         Map<String, Object> request = new HashMap<String, Object>();
+        request.put("username", phone);
         request.put("phone", phone);
         request.put("password", password);
-        request.put("confirmPassword", password);
-        request.put("captcha", "8888");
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

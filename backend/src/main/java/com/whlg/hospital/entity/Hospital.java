@@ -64,8 +64,6 @@ public class Hospital {
      */
     private String city;
 
-    private String district;
-    
     /**
      * 科室数量
      */

@@ -8,6 +8,10 @@ export function getConsultDetail(orderNo) {
   return request.get(`/consults/${orderNo}`)
 }
 
+export function getConsultSuccess(orderNo) {
+  return request.get(`/consults/${orderNo}/success`)
+}
+
 export function cancelConsult(orderNo) {
   return request.post(`/consults/${orderNo}/cancel`, {})
 }

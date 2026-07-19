@@ -4,25 +4,16 @@
       <h2>用户注册</h2>
       <form @submit.prevent="handleRegister">
         <div class="form-group">
+          <label>用户名</label>
+          <input v-model="form.username" type="text" maxlength="30" placeholder="请输入用户名" />
+        </div>
+        <div class="form-group">
           <label>手机号</label>
           <input v-model="form.phone" type="text" maxlength="11" placeholder="请输入手机号" />
         </div>
         <div class="form-group">
-          <label>验证码</label>
-          <div class="captcha-row">
-            <input v-model="form.captcha" type="text" placeholder="请输入验证码" />
-            <button type="button" class="btn-captcha" @click="sendCaptcha" :disabled="sendingCaptcha || captchaCountdown > 0">
-              {{ sendingCaptcha ? '发送中...' : captchaCountdown > 0 ? captchaCountdown + 's' : '获取验证码' }}
-            </button>
-          </div>
-        </div>
-        <div class="form-group">
           <label>设置密码</label>
           <input v-model="form.password" type="password" placeholder="6-20位密码" />
-        </div>
-        <div class="form-group">
-          <label>确认密码</label>
-          <input v-model="form.confirmPassword" type="password" placeholder="请再次输入密码" />
         </div>
         <div class="form-group">
           <label>真实姓名（选填）</label>
@@ -52,70 +43,26 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { registerApi, sendCaptchaApi } from '@/api/auth'
+import { registerApi } from '@/api/auth'
 
 const router = useRouter()
-const form = reactive({ phone: '', captcha: '', password: '', confirmPassword: '', realName: '', email: '', gender: '' })
-const captchaCountdown = ref(0)
-const sendingCaptcha = ref(false)
+const form = reactive({ username: '', phone: '', password: '', realName: '', email: '', gender: '' })
 const loading = ref(false)
-let captchaTimer = null
-
-function startCaptchaCountdown(seconds = 60) {
-  if (captchaTimer) clearInterval(captchaTimer)
-  captchaCountdown.value = seconds
-  captchaTimer = setInterval(() => {
-    captchaCountdown.value--
-    if (captchaCountdown.value <= 0) {
-      clearInterval(captchaTimer)
-      captchaTimer = null
-      captchaCountdown.value = 0
-    }
-  }, 1000)
-}
-
-async function sendCaptcha() {
-  if (!/^1[3-9]\d{9}$/.test(form.phone)) {
-    alert('请输入正确的手机号')
-    return
-  }
-  if (sendingCaptcha.value || captchaCountdown.value > 0) {
-    return
-  }
-
-  sendingCaptcha.value = true
-  try {
-    const res = await sendCaptchaApi({ phone: form.phone })
-    const payload = res?.data || {}
-    console.info('验证码发送成功', payload)
-    alert(`验证码已发送，请留意短信${payload.cooldownSeconds ? `（${payload.cooldownSeconds} 秒后可重发）` : ''}`)
-    startCaptchaCountdown(payload.cooldownSeconds || 60)
-  } catch (error) {
-    console.error('验证码发送失败', error)
-    if (typeof error?.code !== 'number') {
-      alert(error?.response?.data?.message || error?.message || '验证码发送失败，请稍后重试')
-    }
-  } finally {
-    sendingCaptcha.value = false
-  }
-}
 
 async function handleRegister() {
+  if (!form.username.trim()) return alert('请输入用户名')
   if (!/^1[3-9]\d{9}$/.test(form.phone)) return alert('请输入正确的手机号')
   if (form.password.length < 6) return alert('密码至少6位')
-  if (form.password !== form.confirmPassword) return alert('两次密码不一致')
   if (!form.gender) return alert('请选择性别')
 
   loading.value = true
   try {
     await registerApi({
-      username: form.phone,
+      username: form.username.trim(),
       phone: form.phone,
-      captcha: form.captcha,
       password: form.password,
-      confirmPassword: form.confirmPassword,
       realName: form.realName || undefined,
       email: form.email || undefined,
       gender: Number(form.gender),
@@ -128,13 +75,6 @@ async function handleRegister() {
     loading.value = false
   }
 }
-
-onBeforeUnmount(() => {
-  if (captchaTimer) {
-    clearInterval(captchaTimer)
-    captchaTimer = null
-  }
-})
 </script>
 
 <style scoped>

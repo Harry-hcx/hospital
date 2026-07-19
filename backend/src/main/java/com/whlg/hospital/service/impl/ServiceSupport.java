@@ -51,7 +51,7 @@ abstract class ServiceSupport {
 
     protected Map<String, Object> pageMap(PageResult<Map<String, Object>> pageResult) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("records", pageResult.getRecords());
+        result.put("list", pageResult.getRecords());
         result.put("total", pageResult.getTotal());
         result.put("page", pageResult.getPage());
         result.put("pageSize", pageResult.getPageSize());
