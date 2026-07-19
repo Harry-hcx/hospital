@@ -12,7 +12,6 @@
         <result column="image" property="image"/>
         <result column="province" property="province"/>
         <result column="city" property="city"/>
-        <result column="district" property="district"/>
         <result column="department_count" property="departmentCount"/>
         <result column="doctor_count" property="doctorCount"/>
         <result column="follow_count" property="followCount"/>
@@ -22,7 +21,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, name, level, address, phone, intro, image, province, city, district, department_count, doctor_count, follow_count, status, create_time, update_time
+        id, name, level, address, phone, intro, image, province, city, department_count, doctor_count, follow_count, status, create_time, update_time
     </sql>
 
     <select id="selectById" resultMap="BaseResultMap" parameterType="java.lang.Long">
@@ -35,9 +34,9 @@
 
     <insert id="insert" parameterType="com.whlg.hospital.entity.Hospital" useGeneratedKeys="true" keyProperty="id">
         insert into t_hospital (
-            name, level, address, phone, intro, image, province, city, district, department_count, doctor_count, follow_count, status, create_time, update_time
+            name, level, address, phone, intro, image, province, city, department_count, doctor_count, follow_count, status, create_time, update_time
         ) values (
-            #{name}, #{level}, #{address}, #{phone}, #{intro}, #{image}, #{province}, #{city}, #{district}, #{departmentCount}, #{doctorCount}, #{followCount}, #{status}, #{createTime}, #{updateTime}
+            #{name}, #{level}, #{address}, #{phone}, #{intro}, #{image}, #{province}, #{city},  #{departmentCount}, #{doctorCount}, #{followCount}, #{status}, #{createTime}, #{updateTime}
         )
     </insert>
 
@@ -51,7 +50,6 @@
             image = #{et.image},
             province = #{et.province},
             city = #{et.city},
-            district = #{et.district},
             department_count = #{et.departmentCount},
             doctor_count = #{et.doctorCount},
             follow_count = #{et.followCount},

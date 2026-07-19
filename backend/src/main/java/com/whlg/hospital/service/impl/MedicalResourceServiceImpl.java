@@ -106,8 +106,7 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
                 .and(safeKeyword != null, wrapper -> wrapper.like(Hospital::getName, safeKeyword)
                         .or().like(Hospital::getAddress, safeKeyword)
                         .or().like(Hospital::getProvince, safeKeyword)
-                        .or().like(Hospital::getCity, safeKeyword)
-                        .or().like(Hospital::getDistrict, safeKeyword));
+                        .or().like(Hospital::getCity, safeKeyword));
         if (normalizedLevel != null) {
             query.in(Hospital::getLevel, levelValues(normalizedLevel));
         }
@@ -283,7 +282,7 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
     @Override
     public PageResult<Map<String, Object>> listDiseases(Integer page, Integer pageSize, Long departmentId, String keyword) {
         Page<Disease> diseases = diseaseMapper.selectPage(new Page<Disease>(safePage(page), safePageSize(pageSize)), new LambdaQueryWrapper<Disease>()
-                        .eq(departmentId != null, Disease::getDepartmentId, departmentId)
+                        .in(departmentId != null, Disease::getDepartmentId, departmentScopeIds(departmentId))
                         .and(normalize(keyword) != null, wrapper -> wrapper.like(Disease::getName, normalize(keyword))
                                 .or().like(Disease::getAlias, normalize(keyword)).or().like(Disease::getSymptoms, normalize(keyword)))
                         .orderByAsc(Disease::getId));
