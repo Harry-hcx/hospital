@@ -10,6 +10,16 @@ const mockUser = {
 const mockToken = 'eyJhbGciOiJIUzI1NiJ9.mock-token'
 
 export const handlers = {
+  '/auth/sendCaptcha': {
+    POST: (data) => {
+      const { phone } = JSON.parse(data)
+      if (!/^1[3-9]\d{9}$/.test(phone || '')) {
+        return [400, { code: 400, message: '手机号格式不正确' }]
+      }
+      return [200, { code: 200, message: '发送成功', data: { phone, cooldownSeconds: 60, expireSeconds: 300 } }]
+    },
+  },
+
   '/auth/login': {
     POST: (data) => {
       const { phone, password } = JSON.parse(data)

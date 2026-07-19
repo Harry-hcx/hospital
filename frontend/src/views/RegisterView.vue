@@ -12,6 +12,20 @@
           <input v-model="form.phone" type="text" maxlength="11" placeholder="请输入手机号" />
         </div>
         <div class="form-group">
+          <label>验证码</label>
+          <div class="captcha-row">
+            <input v-model="form.captcha" type="text" maxlength="6" placeholder="请输入验证码" />
+            <button
+              type="button"
+              class="captcha-btn"
+              :disabled="captchaSending || countdown > 0"
+              @click="handleSendCaptcha"
+            >
+              {{ captchaButtonText }}
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
           <label>设置密码</label>
           <input v-model="form.password" type="password" placeholder="6-20位密码" />
         </div>
@@ -43,17 +57,67 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { registerApi } from '@/api/auth'
+import { registerApi, sendCaptchaApi } from '@/api/auth'
 
 const router = useRouter()
-const form = reactive({ username: '', phone: '', password: '', realName: '', email: '', gender: '' })
+const form = reactive({ username: '', phone: '', captcha: '', password: '', realName: '', email: '', gender: '' })
 const loading = ref(false)
+const captchaSending = ref(false)
+const countdown = ref(0)
+
+let countdownTimer = null
+
+const captchaButtonText = computed(() => {
+  if (captchaSending.value) return '发送中...'
+  if (countdown.value > 0) return `${countdown.value}s后重试`
+  return '获取验证码'
+})
+
+function isValidPhone(phone) {
+  return /^1[3-9]\d{9}$/.test(phone)
+}
+
+function startCountdown(seconds = 60) {
+  clearCountdown()
+  countdown.value = seconds
+  countdownTimer = window.setInterval(() => {
+    if (countdown.value <= 1) {
+      clearCountdown()
+      return
+    }
+    countdown.value -= 1
+  }, 1000)
+}
+
+function clearCountdown() {
+  if (countdownTimer !== null) {
+    window.clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+  countdown.value = 0
+}
+
+async function handleSendCaptcha() {
+  if (!isValidPhone(form.phone)) return alert('请先输入正确的手机号')
+
+  captchaSending.value = true
+  try {
+    const response = await sendCaptchaApi({ phone: form.phone })
+    startCountdown(response?.data?.cooldownSeconds || 60)
+    alert('验证码已发送，请注意查收')
+  } catch {
+    // 拦截器已提示
+  } finally {
+    captchaSending.value = false
+  }
+}
 
 async function handleRegister() {
   if (!form.username.trim()) return alert('请输入用户名')
-  if (!/^1[3-9]\d{9}$/.test(form.phone)) return alert('请输入正确的手机号')
+  if (!isValidPhone(form.phone)) return alert('请输入正确的手机号')
+  if (!form.captcha.trim()) return alert('请输入验证码')
   if (form.password.length < 6) return alert('密码至少6位')
   if (!form.gender) return alert('请选择性别')
 
@@ -75,6 +139,10 @@ async function handleRegister() {
     loading.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  clearCountdown()
+})
 </script>
 
 <style scoped>
@@ -117,6 +185,36 @@ async function handleRegister() {
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 12px;
+}
+
+.captcha-row input {
+  flex: 1;
+}
+
+.captcha-btn {
+  width: 120px;
+  flex-shrink: 0;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--primary);
+  transition: all 0.2s;
+}
+
+.captcha-btn:hover:not(:disabled) {
+  background: var(--primary-light);
+}
+
+.captcha-btn:disabled {
+  border-color: var(--border);
+  color: var(--text-light);
+  background: #f5f5f5;
+  cursor: not-allowed;
 }
 
 .form-group select {
