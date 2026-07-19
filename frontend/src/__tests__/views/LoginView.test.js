@@ -61,4 +61,15 @@ describe('LoginView', () => {
     await wrapper.find('form').trigger('submit.prevent')
     expect(localStorage.getItem('token')).toBeNull()
   })
+
+  it('演示账号也通过真实登录接口获取令牌', async () => {
+    const wrapper = mount(LoginView, {
+      global: { stubs: { 'router-link': { template: '<a><slot /></a>' } } },
+    })
+    const button = wrapper.findAll('button').find((item) => item.text().includes('使用演示账号登录'))
+    expect(button).toBeTruthy()
+    await button.trigger('click')
+    await flushPromises()
+    expect(localStorage.getItem('token')).toBe('mock-token')
+  })
 })

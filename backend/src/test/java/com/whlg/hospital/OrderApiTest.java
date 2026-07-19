@@ -12,6 +12,7 @@ import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +32,27 @@ class OrderApiTest extends BaseApiTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderNo").isString());
+    }
+
+    @Test
+    void shouldRejectDuplicateAppointmentForSameSchedule() throws Exception {
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("scheduleId", 1);
+        request.put("familyMemberId", 1);
+
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderNo").isString());
+
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test
@@ -54,6 +76,17 @@ class OrderApiTest extends BaseApiTest {
         mockMvc.perform(post("/api/appointments/AP202607170001/cancel").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    void shouldRejectCancellingAppointmentTwice() throws Exception {
+        mockMvc.perform(post("/api/appointments/AP202607170001/cancel").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(post("/api/appointments/AP202607170001/cancel").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test
@@ -90,6 +123,21 @@ class OrderApiTest extends BaseApiTest {
     }
 
     @Test
+    void shouldFilterAppointmentsByStatus() throws Exception {
+        mockMvc.perform(get("/api/appointments/my")
+                        .header("Authorization", auth())
+                        .param("status", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+
+        mockMvc.perform(get("/api/appointments/my")
+                        .header("Authorization", auth())
+                        .param("status", "99"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
     void shouldCreateConsult() throws Exception {
         Map<String, Object> request = new HashMap<String, Object>();
         request.put("doctorId", 1);
@@ -110,6 +158,21 @@ class OrderApiTest extends BaseApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fee").isNumber())
                 .andExpect(jsonPath("$.data.appointmentTime").exists());
+    }
+
+    @Test
+    void shouldCancelPendingConsult() throws Exception {
+        mockMvc.perform(post("/api/consults/CO202607170001/cancel").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/consults/CO202607170001").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(5));
+
+        mockMvc.perform(post("/api/consults/CO202607170001/cancel").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test
@@ -144,6 +207,55 @@ class OrderApiTest extends BaseApiTest {
         mockMvc.perform(get("/api/consults/my").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void shouldFilterConsultsByLifecycleStatus() throws Exception {
+        mockMvc.perform(get("/api/consults/my")
+                        .header("Authorization", auth())
+                        .param("status", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].appointmentTime").exists());
+    }
+
+    @Test
+    void shouldToggleFollowIdempotentlyAndExposeStatus() throws Exception {
+        mockMvc.perform(get("/api/doctors/2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.followCount").value(180));
+
+        mockMvc.perform(get("/api/follow/2/2").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.following").value(false));
+
+        mockMvc.perform(post("/api/follow/2/2").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.following").value(true));
+
+        mockMvc.perform(get("/api/doctors/2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.followCount").value(181));
+
+        mockMvc.perform(post("/api/follow/2/2").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.following").value(true));
+
+        mockMvc.perform(get("/api/doctors/2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.followCount").value(181));
+
+        mockMvc.perform(delete("/api/follow/2/2").header("Authorization", auth()))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/api/follow/2/2").header("Authorization", auth()))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/follow/2/2").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.following").value(false));
+
+        mockMvc.perform(get("/api/doctors/2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.followCount").value(180));
     }
 
     @Test
@@ -200,7 +312,8 @@ class OrderApiTest extends BaseApiTest {
         callbackRequest.put("tradeNo", "TRADE-001");
         callbackRequest.put("payStatus", 1);
 
-        mockMvc.perform(post("/api/payments/callback")
+                mockMvc.perform(post("/api/payments/callback")
+                        .header("X-Payment-Signature", "test-payment-secret")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(callbackRequest)))
                 .andExpect(status().isOk())

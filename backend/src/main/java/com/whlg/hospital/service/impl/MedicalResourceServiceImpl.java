@@ -1,6 +1,10 @@
 package com.whlg.hospital.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.whlg.hospital.entity.Article;
 import com.whlg.hospital.entity.Config;
 import com.whlg.hospital.entity.Department;
@@ -28,6 +32,7 @@ import org.springframework.stereotype.Service;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +52,7 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
     private final DiseaseMapper diseaseMapper;
     private final ArticleMapper articleMapper;
     private final ConfigMapper configMapper;
+    private final ObjectMapper objectMapper;
 
     public MedicalResourceServiceImpl(HospitalMapper hospitalMapper,
                                       DepartmentMapper departmentMapper,
@@ -56,7 +62,8 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
                                       ReviewMapper reviewMapper,
                                       DiseaseMapper diseaseMapper,
                                       ArticleMapper articleMapper,
-                                      ConfigMapper configMapper) {
+                                      ConfigMapper configMapper,
+                                      ObjectMapper objectMapper) {
         this.hospitalMapper = hospitalMapper;
         this.departmentMapper = departmentMapper;
         this.hospitalDepartmentMapper = hospitalDepartmentMapper;
@@ -66,34 +73,54 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         this.diseaseMapper = diseaseMapper;
         this.articleMapper = articleMapper;
         this.configMapper = configMapper;
+        this.objectMapper = objectMapper;
     }
 
     @Override
     public Map<String, Object> homeIndex() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("banners", loadBanners());
-        result.put("recommendHospitals", hospitalMapper.selectList(new LambdaQueryWrapper<Hospital>().last("limit 3")).stream().map(this::hospitalSummary).collect(Collectors.toList()));
-        result.put("recommendDoctors", doctorMapper.selectList(new LambdaQueryWrapper<Doctor>().last("limit 3")).stream()
+        result.put("recommendHospitals", hospitalMapper.selectList(new LambdaQueryWrapper<Hospital>()
+                .eq(Hospital::getStatus, 1).orderByAsc(Hospital::getId).last("limit 3"))
+                .stream().map(this::hospitalResourceSummary).collect(Collectors.toList()));
+        result.put("recommendDoctors", doctorMapper.selectList(new LambdaQueryWrapper<Doctor>()
+                        .eq(Doctor::getStatus, 1).orderByAsc(Doctor::getId).last("limit 3")).stream()
                 .map(item -> doctorSummary(item, hospitalMapper.selectById(item.getHospitalId()), departmentMapper.selectById(item.getDepartmentId())))
                 .collect(Collectors.toList()));
-        result.put("recommendDiseases", diseaseMapper.selectList(new LambdaQueryWrapper<Disease>().last("limit 3")).stream().map(this::diseaseSummary).collect(Collectors.toList()));
-        result.put("recommendArticles", articleMapper.selectList(new LambdaQueryWrapper<Article>().last("limit 3")).stream().map(this::articleSummary).collect(Collectors.toList()));
+        result.put("recommendDiseases", diseaseMapper.selectList(new LambdaQueryWrapper<Disease>()
+                .orderByAsc(Disease::getId).last("limit 3")).stream().map(this::diseaseSummary).collect(Collectors.toList()));
+        result.put("recommendArticles", articleMapper.selectList(new LambdaQueryWrapper<Article>()
+                .eq(Article::getStatus, 1).orderByDesc(Article::getPublishTime).last("limit 3"))
+                .stream().map(this::articleSummary).collect(Collectors.toList()));
         return result;
     }
 
     @Override
     public PageResult<Map<String, Object>> listHospitals(Integer page, Integer pageSize, Long departmentId, String keyword, String level, String province, String city) {
-        List<Hospital> hospitals = hospitalMapper.selectList(new LambdaQueryWrapper<Hospital>()
-                .like(keyword != null && !keyword.isEmpty(), Hospital::getName, keyword)
-                .eq(level != null && !level.isEmpty(), Hospital::getLevel, level)
-                .eq(province != null && !province.isEmpty(), Hospital::getProvince, province)
-                .eq(city != null && !city.isEmpty(), Hospital::getCity, city));
-        if (departmentId != null) {
-            List<Long> hospitalIds = hospitalDepartmentMapper.selectList(new LambdaQueryWrapper<HospitalDepartment>().eq(HospitalDepartment::getDepartmentId, departmentId))
-                    .stream().map(HospitalDepartment::getHospitalId).collect(Collectors.toList());
-            hospitals = hospitals.stream().filter(item -> hospitalIds.contains(item.getId())).collect(Collectors.toList());
+        String safeKeyword = normalize(keyword);
+        String normalizedLevel = normalizeLevel(level);
+        LambdaQueryWrapper<Hospital> query = new LambdaQueryWrapper<Hospital>()
+                .eq(Hospital::getStatus, 1)
+                .eq(normalize(province) != null, Hospital::getProvince, normalize(province))
+                .eq(normalize(city) != null, Hospital::getCity, normalize(city))
+                .and(safeKeyword != null, wrapper -> wrapper.like(Hospital::getName, safeKeyword)
+                        .or().like(Hospital::getAddress, safeKeyword)
+                        .or().like(Hospital::getProvince, safeKeyword)
+                        .or().like(Hospital::getCity, safeKeyword)
+                        .or().like(Hospital::getDistrict, safeKeyword));
+        if (normalizedLevel != null) {
+            query.in(Hospital::getLevel, levelValues(normalizedLevel));
         }
-        return paginate(hospitals.stream().map(this::hospitalSummary).collect(Collectors.toList()), page, pageSize);
+        if (departmentId != null) {
+            List<Long> departmentIds = departmentScopeIds(departmentId);
+            List<Long> hospitalIds = hospitalDepartmentMapper.selectList(new LambdaQueryWrapper<HospitalDepartment>().in(HospitalDepartment::getDepartmentId, departmentIds))
+                    .stream().map(HospitalDepartment::getHospitalId).collect(Collectors.toList());
+            if (hospitalIds.isEmpty()) {
+                return emptyPage(page, pageSize);
+            }
+            query.in(Hospital::getId, hospitalIds);
+        }
+        return mapPage(hospitalMapper.selectPage(new Page<Hospital>(safePage(page), safePageSize(pageSize)), query), this::hospitalResourceSummary);
     }
 
     @Override
@@ -102,8 +129,10 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         if (hospital == null) {
             throw new ApiException(StatusCode.NOT_FOUND, "医院不存在");
         }
-        Map<String, Object> result = hospitalSummary(hospital);
+        Map<String, Object> result = hospitalResourceSummary(hospital);
         result.put("intro", hospital.getIntro());
+        result.put("departments", getHospitalDepartments(hospitalId));
+        result.put("doctors", getHospitalDoctors(hospitalId, 1, 10, null).getRecords());
         return result;
     }
 
@@ -122,10 +151,21 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
     }
 
     @Override
-    public PageResult<Map<String, Object>> getHospitalDoctors(Long hospitalId, Integer page, Integer pageSize) {
-        return paginate(doctorMapper.selectList(new LambdaQueryWrapper<Doctor>().eq(Doctor::getHospitalId, hospitalId)).stream()
-                .map(item -> doctorSummary(item, hospitalMapper.selectById(item.getHospitalId()), departmentMapper.selectById(item.getDepartmentId())))
-                .collect(Collectors.toList()), page, pageSize);
+    public PageResult<Map<String, Object>> getHospitalDoctors(Long hospitalId, Integer page, Integer pageSize, Long departmentId) {
+        if (hospitalMapper.selectById(hospitalId) == null) {
+            throw new ApiException(StatusCode.NOT_FOUND, "Hospital not found");
+        }
+        LambdaQueryWrapper<Doctor> query = new LambdaQueryWrapper<Doctor>()
+                .eq(Doctor::getHospitalId, hospitalId)
+                .eq(Doctor::getStatus, 1)
+                .orderByAsc(Doctor::getId);
+        if (departmentId != null) {
+            query.in(Doctor::getDepartmentId, departmentScopeIds(departmentId));
+        }
+        Page<Doctor> doctors = doctorMapper.selectPage(new Page<Doctor>(safePage(page), safePageSize(pageSize)),
+                query);
+        return mapPage(doctors, item -> doctorSummary(item, hospitalMapper.selectById(item.getHospitalId()),
+                departmentMapper.selectById(item.getDepartmentId())));
     }
 
     @Override
@@ -157,12 +197,18 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
 
     @Override
     public PageResult<Map<String, Object>> listDoctors(Integer page, Integer pageSize, Long departmentId, String keyword, Long hospitalId) {
-        return paginate(doctorMapper.selectList(new LambdaQueryWrapper<Doctor>()
-                        .eq(departmentId != null, Doctor::getDepartmentId, departmentId)
+        String safeKeyword = normalize(keyword);
+        LambdaQueryWrapper<Doctor> query = new LambdaQueryWrapper<Doctor>().eq(Doctor::getStatus, 1)
                         .eq(hospitalId != null, Doctor::getHospitalId, hospitalId)
-                        .and(keyword != null && !keyword.isEmpty(), wrapper -> wrapper.like(Doctor::getName, keyword).or().like(Doctor::getExpertise, keyword)))
-                .stream().map(item -> doctorSummary(item, hospitalMapper.selectById(item.getHospitalId()), departmentMapper.selectById(item.getDepartmentId())))
-                .collect(Collectors.toList()), page, pageSize);
+                        .and(safeKeyword != null, wrapper -> wrapper.like(Doctor::getName, safeKeyword)
+                                .or().like(Doctor::getTitle, safeKeyword).or().like(Doctor::getExpertise, safeKeyword))
+                        .orderByAsc(Doctor::getId);
+        if (departmentId != null) {
+            query.in(Doctor::getDepartmentId, departmentScopeIds(departmentId));
+        }
+        Page<Doctor> doctors = doctorMapper.selectPage(new Page<Doctor>(safePage(page), safePageSize(pageSize)), query);
+        return mapPage(doctors, item -> doctorSummary(item, hospitalMapper.selectById(item.getHospitalId()),
+                departmentMapper.selectById(item.getDepartmentId())));
     }
 
     @Override
@@ -173,6 +219,8 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         }
         Map<String, Object> result = doctorSummary(doctor, hospitalMapper.selectById(doctor.getHospitalId()), departmentMapper.selectById(doctor.getDepartmentId()));
         result.put("intro", doctor.getIntro());
+        result.put("schedules", getDoctorSchedules(doctorId, null, 14));
+        result.put("reviews", getDoctorReviews(doctorId, 1, 10).getRecords());
         return result;
     }
 
@@ -182,14 +230,22 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         if (doctor == null) {
             throw new ApiException(StatusCode.NOT_FOUND, "医生不存在");
         }
-        LocalDate begin = startDate == null ? LocalDate.now() : LocalDate.parse(startDate);
-        int dayCount = days == null || days < 1 ? 7 : days;
+        LocalDate today = LocalDate.now();
+        LocalDate begin = startDate == null || startDate.trim().isEmpty()
+                ? today
+                : LocalDate.parse(startDate.trim());
+        begin = begin.isBefore(today) ? today : begin;
+        int dayCount = days == null || days < 1 ? 7 : Math.min(days, 31);
         LocalDate end = begin.plusDays(dayCount - 1L);
         return scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
                         .eq(Schedule::getDoctorId, doctorId)
+                        .eq(Schedule::getStatus, 1)
+                        .gt(Schedule::getRemainCount, 0)
+                        .eq(Schedule::getHospitalId, doctor.getHospitalId())
+                        .eq(Schedule::getDepartmentId, doctor.getDepartmentId())
                         .ge(Schedule::getScheduleDate, begin)
                         .le(Schedule::getScheduleDate, end)
-                        .orderByAsc(Schedule::getScheduleDate))
+                        .orderByAsc(Schedule::getScheduleDate).orderByAsc(Schedule::getTimeSlot))
                 .stream().map(item -> {
                     Map<String, Object> result = new LinkedHashMap<String, Object>();
                     result.put("id", item.getId());
@@ -198,16 +254,21 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
                     result.put("timeSlot", item.getTimeSlot());
                     result.put("remainCount", item.getRemainCount());
                     result.put("totalCount", item.getTotalCount());
+                    result.put("hospitalId", item.getHospitalId());
+                    result.put("departmentId", item.getDepartmentId());
                     result.put("registrationPrice", doctor.getRegistrationPrice());
                     result.put("status", item.getStatus());
+                    result.put("isAvailable", item.getRemainCount() != null && item.getRemainCount() > 0
+                            && !item.getScheduleDate().isBefore(LocalDate.now()));
                     return result;
                 }).collect(Collectors.toList());
     }
 
     @Override
     public PageResult<Map<String, Object>> getDoctorReviews(Long doctorId, Integer page, Integer pageSize) {
-        return paginate(reviewMapper.selectList(new LambdaQueryWrapper<Review>().eq(Review::getDoctorId, doctorId).orderByDesc(Review::getCreateTime)).stream()
-                .map(item -> {
+        Page<Review> reviews = reviewMapper.selectPage(new Page<Review>(safePage(page), safePageSize(pageSize)),
+                new LambdaQueryWrapper<Review>().eq(Review::getDoctorId, doctorId).orderByDesc(Review::getCreateTime));
+        return mapPage(reviews, item -> {
                     Map<String, Object> result = new LinkedHashMap<String, Object>();
                     result.put("id", item.getId());
                     result.put("userId", item.getUserId());
@@ -216,15 +277,17 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
                     result.put("content", item.getContent());
                     result.put("createTime", item.getCreateTime());
                     return result;
-                }).collect(Collectors.toList()), page, pageSize);
+                });
     }
 
     @Override
     public PageResult<Map<String, Object>> listDiseases(Integer page, Integer pageSize, Long departmentId, String keyword) {
-        return paginate(diseaseMapper.selectList(new LambdaQueryWrapper<Disease>()
+        Page<Disease> diseases = diseaseMapper.selectPage(new Page<Disease>(safePage(page), safePageSize(pageSize)), new LambdaQueryWrapper<Disease>()
                         .eq(departmentId != null, Disease::getDepartmentId, departmentId)
-                        .and(keyword != null && !keyword.isEmpty(), wrapper -> wrapper.like(Disease::getName, keyword).or().like(Disease::getAlias, keyword)))
-                .stream().map(this::diseaseSummary).collect(Collectors.toList()), page, pageSize);
+                        .and(normalize(keyword) != null, wrapper -> wrapper.like(Disease::getName, normalize(keyword))
+                                .or().like(Disease::getAlias, normalize(keyword)).or().like(Disease::getSymptoms, normalize(keyword)))
+                        .orderByAsc(Disease::getId));
+        return mapPage(diseases, this::diseaseSummary);
     }
 
     @Override
@@ -241,19 +304,25 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         result.put("cureRate", disease.getCureRate());
         result.put("examinations", disease.getExaminations());
         result.put("departmentId", disease.getDepartmentId());
-        result.put("recommendDoctors", doctorMapper.selectList(new LambdaQueryWrapper<Doctor>().eq(Doctor::getDepartmentId, disease.getDepartmentId())).stream()
+        Department diseaseDepartment = departmentMapper.selectById(disease.getDepartmentId());
+        result.put("departmentName", diseaseDepartment == null ? null : diseaseDepartment.getName());
+        result.put("symptom", disease.getSymptoms());
+        result.put("recommendDoctors", doctorMapper.selectList(new LambdaQueryWrapper<Doctor>().eq(Doctor::getDepartmentId, disease.getDepartmentId()).eq(Doctor::getStatus, 1)).stream()
                 .map(item -> doctorSummary(item, hospitalMapper.selectById(item.getHospitalId()), departmentMapper.selectById(item.getDepartmentId())))
                 .collect(Collectors.toList()));
-        result.put("recommendArticles", articleMapper.selectList(new LambdaQueryWrapper<Article>().eq(Article::getDepartmentId, disease.getDepartmentId())).stream().map(this::articleSummary).collect(Collectors.toList()));
+        result.put("recommendArticles", articleMapper.selectList(new LambdaQueryWrapper<Article>().eq(Article::getDepartmentId, disease.getDepartmentId()).eq(Article::getStatus, 1)).stream().map(this::articleSummary).collect(Collectors.toList()));
         return result;
     }
 
     @Override
     public PageResult<Map<String, Object>> listArticles(Integer page, Integer pageSize, Long departmentId, String keyword) {
-        return paginate(articleMapper.selectList(new LambdaQueryWrapper<Article>()
+        Page<Article> articles = articleMapper.selectPage(new Page<Article>(safePage(page), safePageSize(pageSize)), new LambdaQueryWrapper<Article>()
+                        .eq(Article::getStatus, 1)
                         .eq(departmentId != null, Article::getDepartmentId, departmentId)
-                        .and(keyword != null && !keyword.isEmpty(), wrapper -> wrapper.like(Article::getTitle, keyword).or().like(Article::getSummary, keyword)))
-                .stream().map(this::articleSummary).collect(Collectors.toList()), page, pageSize);
+                        .and(normalize(keyword) != null, wrapper -> wrapper.like(Article::getTitle, normalize(keyword))
+                                .or().like(Article::getSummary, normalize(keyword)).or().like(Article::getContent, normalize(keyword)))
+                        .orderByDesc(Article::getPublishTime));
+        return mapPage(articles, this::articleSummary);
     }
 
     @Override
@@ -262,34 +331,142 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         if (article == null) {
             throw new ApiException(StatusCode.NOT_FOUND, "文章不存在");
         }
+        articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, articleId)
+                .setSql("views = COALESCE(views, 0) + 1"));
+        article = articleMapper.selectById(articleId);
         Map<String, Object> result = articleSummary(article);
         result.put("content", article.getContent());
         Department department = departmentMapper.selectById(article.getDepartmentId());
         result.put("departmentName", department == null ? null : department.getName());
+        result.put("department", department == null ? null : departmentSummary(department));
         return result;
     }
 
     @Override
     public Map<String, Object> globalSearch(String keyword, String type, Integer page, Integer pageSize) {
-        String safeKeyword = keyword == null ? "" : keyword;
+        String safeKeyword = keyword == null ? null : keyword.trim();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("hospitalList", listHospitals(page, pageSize, null, safeKeyword, null, null, null).getRecords());
-        result.put("doctorList", listDoctors(page, pageSize, null, safeKeyword, null).getRecords());
-        result.put("diseaseList", listDiseases(page, pageSize, null, safeKeyword).getRecords());
-        result.put("articleList", listArticles(page, pageSize, null, safeKeyword).getRecords());
+        PageResult<Map<String, Object>> hospitals = listHospitals(page, pageSize, null, safeKeyword, null, null, null);
+        PageResult<Map<String, Object>> doctors = listDoctors(page, pageSize, null, safeKeyword, null);
+        PageResult<Map<String, Object>> diseases = listDiseases(page, pageSize, null, safeKeyword);
+        PageResult<Map<String, Object>> articles = listArticles(page, pageSize, null, safeKeyword);
+        result.put("hospitalList", hospitals.getRecords());
+        result.put("doctorList", doctors.getRecords());
+        result.put("diseaseList", diseases.getRecords());
+        result.put("articleList", articles.getRecords());
+        result.put("hospitalCount", hospitals.getTotal());
+        result.put("doctorCount", doctors.getTotal());
+        result.put("diseaseCount", diseases.getTotal());
+        result.put("articleCount", articles.getTotal());
+        result.put("hospitalTotal", hospitals.getTotal());
+        result.put("doctorTotal", doctors.getTotal());
+        result.put("diseaseTotal", diseases.getTotal());
+        result.put("articleTotal", articles.getTotal());
+        Map<String, Object> counts = new LinkedHashMap<String, Object>();
+        counts.put("hospital", hospitals.getTotal());
+        counts.put("doctor", doctors.getTotal());
+        counts.put("disease", diseases.getTotal());
+        counts.put("article", articles.getTotal());
+        result.put("counts", counts);
         if (type != null) {
+            String normalizedType = type.trim().toLowerCase(Locale.ROOT);
             Map<String, Object> filtered = new LinkedHashMap<String, Object>();
-            filtered.put("hospitalList", "hospital".equals(type) ? result.get("hospitalList") : Collections.emptyList());
-            filtered.put("doctorList", "doctor".equals(type) ? result.get("doctorList") : Collections.emptyList());
-            filtered.put("diseaseList", "disease".equals(type) ? result.get("diseaseList") : Collections.emptyList());
-            filtered.put("articleList", "article".equals(type) ? result.get("articleList") : Collections.emptyList());
+            filtered.put("hospitalList", "hospital".equals(normalizedType) ? result.get("hospitalList") : Collections.emptyList());
+            filtered.put("doctorList", "doctor".equals(normalizedType) ? result.get("doctorList") : Collections.emptyList());
+            filtered.put("diseaseList", "disease".equals(normalizedType) ? result.get("diseaseList") : Collections.emptyList());
+            filtered.put("articleList", "article".equals(normalizedType) ? result.get("articleList") : Collections.emptyList());
+            filtered.put("hospitalCount", result.get("hospitalCount"));
+            filtered.put("doctorCount", result.get("doctorCount"));
+            filtered.put("diseaseCount", result.get("diseaseCount"));
+            filtered.put("articleCount", result.get("articleCount"));
+            filtered.put("hospitalTotal", result.get("hospitalTotal"));
+            filtered.put("doctorTotal", result.get("doctorTotal"));
+            filtered.put("diseaseTotal", result.get("diseaseTotal"));
+            filtered.put("articleTotal", result.get("articleTotal"));
+            filtered.put("counts", counts);
             return filtered;
         }
         return result;
     }
 
+    private String normalize(String value) {
+        return value == null || value.trim().isEmpty() ? null : value.trim();
+    }
+
+    private Map<String, Object> hospitalResourceSummary(Hospital hospital) {
+        Map<String, Object> result = hospitalSummary(hospital);
+        result.put("departmentCount", hospitalDepartmentMapper.selectCount(
+                new LambdaQueryWrapper<HospitalDepartment>().eq(HospitalDepartment::getHospitalId, hospital.getId())));
+        result.put("doctorCount", doctorMapper.selectCount(new LambdaQueryWrapper<Doctor>()
+                .eq(Doctor::getHospitalId, hospital.getId()).eq(Doctor::getStatus, 1)));
+        return result;
+    }
+
+    /** The API uses full level names while old seed data may use short names. */
+    private String normalizeLevel(String value) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            return null;
+        }
+        if ("三甲".equals(normalized) || "三级甲".equals(normalized) || "三级甲等".equals(normalized)) {
+            return "三级甲等";
+        }
+        if ("三乙".equals(normalized) || "三级乙".equals(normalized) || "三级乙等".equals(normalized)) {
+            return "三级乙等";
+        }
+        if ("二甲".equals(normalized) || "二级甲".equals(normalized) || "二级甲等".equals(normalized)) {
+            return "二级甲等";
+        }
+        if ("二乙".equals(normalized) || "二级乙".equals(normalized) || "二级乙等".equals(normalized)) {
+            return "二级乙等";
+        }
+        return normalized;
+    }
+
+    private List<String> levelValues(String normalizedLevel) {
+        if ("三级甲等".equals(normalizedLevel)) {
+            return Arrays.asList("三甲", "三级甲等");
+        }
+        if ("三级乙等".equals(normalizedLevel)) {
+            return Arrays.asList("三乙", "三级乙等");
+        }
+        if ("二级甲等".equals(normalizedLevel)) {
+            return Arrays.asList("二甲", "二级甲等");
+        }
+        if ("二级乙等".equals(normalizedLevel)) {
+            return Arrays.asList("二乙", "二级乙等");
+        }
+        return Collections.singletonList(normalizedLevel);
+    }
+
+    private List<Long> departmentScopeIds(Long departmentId) {
+        Department department = departmentMapper.selectOne(new LambdaQueryWrapper<Department>()
+                .eq(Department::getId, departmentId).eq(Department::getStatus, 1));
+        if (department == null) {
+            return Collections.singletonList(departmentId);
+        }
+        if (!Long.valueOf(0L).equals(department.getParentId())) {
+            return Collections.singletonList(departmentId);
+        }
+        List<Long> ids = departmentMapper.selectList(new LambdaQueryWrapper<Department>()
+                        .eq(Department::getParentId, departmentId).eq(Department::getStatus, 1))
+                .stream().map(Department::getId).collect(Collectors.toList());
+        ids.add(departmentId);
+        return ids;
+    }
+
+    private <T, R> PageResult<R> mapPage(Page<T> page, java.util.function.Function<T, R> mapper) {
+        return new PageResult<R>(page.getRecords().stream().map(mapper).collect(Collectors.toList()),
+                page.getTotal(), (int) page.getCurrent(), (int) page.getSize());
+    }
+
+    private <R> PageResult<R> emptyPage(Integer page, Integer pageSize) {
+        return new PageResult<R>(Collections.<R>emptyList(), 0L, safePage(page), safePageSize(pageSize));
+    }
+
     private List<Map<String, Object>> buildDepartmentTree(List<Department> departmentList) {
-        List<Department> parentDepartments = departmentList.stream().filter(item -> item.getParentId() == 0L).collect(Collectors.toList());
+        List<Department> parentDepartments = departmentList.stream().filter(item -> Long.valueOf(0L).equals(item.getParentId())).collect(Collectors.toList());
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (Department parent : parentDepartments) {
             Map<String, Object> parentNode = departmentSummary(parent);
@@ -338,19 +515,23 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         result.put("image", article.getImage());
         result.put("author", article.getAuthor());
         result.put("publishTime", article.getPublishTime());
+        result.put("createTime", article.getPublishTime());
+        result.put("viewCount", article.getViews());
         return result;
     }
 
     private List<Map<String, Object>> loadBanners() {
         Config config = configMapper.selectOne(new LambdaQueryWrapper<Config>().eq(Config::getConfigKey, "homeBanners"));
-        if (config == null || config.getConfigValue() == null) {
-            Map<String, Object> banner = new LinkedHashMap<String, Object>();
-
-            return Collections.singletonList(banner);
+        if (config == null || normalize(config.getConfigValue()) == null) {
+            return Collections.emptyList();
         }
-        Map<String, Object> banner = new LinkedHashMap<String, Object>();
-
-        return Collections.singletonList(banner);
+        try {
+            List<Map<String, Object>> banners = objectMapper.readValue(config.getConfigValue(),
+                    new TypeReference<List<Map<String, Object>>>() { });
+            return banners == null ? Collections.emptyList() : banners;
+        } catch (Exception ignored) {
+            return Collections.emptyList();
+        }
     }
 
     private String weekDay(DayOfWeek dayOfWeek) {

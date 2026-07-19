@@ -1,6 +1,7 @@
 package com.whlg.hospital.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.whlg.hospital.dto.CreateFeedbackRequest;
 import com.whlg.hospital.dto.CreateReviewRequest;
 import com.whlg.hospital.dto.FamilyMemberRequest;
@@ -13,6 +14,8 @@ import com.whlg.hospital.entity.Review;
 import com.whlg.hospital.entity.User;
 import com.whlg.hospital.mapper.DiseaseMapper;
 import com.whlg.hospital.mapper.DoctorMapper;
+import com.whlg.hospital.mapper.AppointmentMapper;
+import com.whlg.hospital.mapper.ConsultMapper;
 import com.whlg.hospital.mapper.FamilyMemberMapper;
 import com.whlg.hospital.mapper.FeedbackMapper;
 import com.whlg.hospital.mapper.FollowMapper;
@@ -25,8 +28,12 @@ import com.whlg.hospital.support.ApiException;
 import com.whlg.hospital.util.StatusCode;
 import com.whlg.hospital.vo.PageResult;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,6 +44,8 @@ import java.util.stream.Collectors;
 public class UserCenterServiceImpl extends ServiceSupport implements UserCenterService {
 
     private final UserMapper userMapper;
+    private final AppointmentMapper appointmentMapper;
+    private final ConsultMapper consultMapper;
     private final FamilyMemberMapper familyMemberMapper;
     private final ReviewMapper reviewMapper;
     private final DoctorMapper doctorMapper;
@@ -47,6 +56,8 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     private final DiseaseMapper diseaseMapper;
 
     public UserCenterServiceImpl(UserMapper userMapper,
+                                 AppointmentMapper appointmentMapper,
+                                 ConsultMapper consultMapper,
                                  FamilyMemberMapper familyMemberMapper,
                                  ReviewMapper reviewMapper,
                                  DoctorMapper doctorMapper,
@@ -56,6 +67,8 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
                                  HospitalMapper hospitalMapper,
                                  DiseaseMapper diseaseMapper) {
         this.userMapper = userMapper;
+        this.appointmentMapper = appointmentMapper;
+        this.consultMapper = consultMapper;
         this.familyMemberMapper = familyMemberMapper;
         this.reviewMapper = reviewMapper;
         this.doctorMapper = doctorMapper;
@@ -82,6 +95,8 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
 
     @Override
     public void updateProfile(UpdateProfileRequest request) {
+        check(request != null, "请求参数不能为空");
+        check(request.getBirthday() == null || !request.getBirthday().isAfter(LocalDate.now()), "生日不能晚于今天");
         User user = userMapper.selectById(requireUserId());
         user.setRealName(request.getName());
         user.setGender(request.getGender());
@@ -101,10 +116,16 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     }
 
     @Override
+    @Transactional
     public Map<String, Object> createFamilyMember(FamilyMemberRequest request) {
+        validateFamilyMember(request);
+        Long userId = requireUserId();
+        if (Integer.valueOf(1).equals(request.getIsDefault())) {
+            clearDefaultFamilyMember(userId, null);
+        }
         FamilyMember familyMember = new FamilyMember();
         fillFamilyMember(familyMember, request);
-        familyMember.setUserId(requireUserId());
+        familyMember.setUserId(userId);
         familyMember.setCreateTime(LocalDateTime.now());
         familyMember.setUpdateTime(LocalDateTime.now());
         familyMemberMapper.insert(familyMember);
@@ -114,9 +135,14 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     }
 
     @Override
+    @Transactional
     public void updateFamilyMember(Long id, FamilyMemberRequest request) {
         FamilyMember familyMember = familyMemberMapper.selectById(id);
         check(familyMember != null && requireUserId().equals(familyMember.getUserId()), "就诊人不存在");
+        validateFamilyMember(request);
+        if (Integer.valueOf(1).equals(request.getIsDefault())) {
+            clearDefaultFamilyMember(familyMember.getUserId(), id);
+        }
         fillFamilyMember(familyMember, request);
         familyMember.setUpdateTime(LocalDateTime.now());
         familyMemberMapper.updateById(familyMember);
@@ -139,7 +165,8 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
                     result.put("orderType", item.getOrderType());
                     result.put("orderId", item.getOrderId());
                     result.put("doctorId", item.getDoctorId());
-                    result.put("doctorName", doctorMapper.selectById(item.getDoctorId()).getName());
+                    com.whlg.hospital.entity.Doctor doctor = doctorMapper.selectById(item.getDoctorId());
+                    result.put("doctorName", doctor == null ? null : doctor.getName());
                     result.put("content", item.getContent());
                     result.put("rating", item.getRating());
                     result.put("createTime", item.getCreateTime());
@@ -148,16 +175,46 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     }
 
     @Override
-    public Map<String, Object> createReview(CreateReviewRequest request) {
+    @Transactional
+    public synchronized Map<String, Object> createReview(CreateReviewRequest request) {
+        check(request != null && request.getOrderType() != null && request.getOrderId() != null
+                && request.getDoctorId() != null && request.getRating() != null
+                && request.getRating() >= 1 && request.getRating() <= 5
+                && request.getContent() != null && !request.getContent().trim().isEmpty(), "评价参数不正确");
+        Long userId = requireUserId();
+        if (Integer.valueOf(1).equals(request.getOrderType())) {
+            com.whlg.hospital.entity.Appointment appointment = appointmentMapper.selectById(request.getOrderId());
+            check(appointment != null && userId.equals(appointment.getUserId())
+                    && Integer.valueOf(3).equals(appointment.getStatus())
+                    && request.getDoctorId().equals(appointment.getDoctorId()), "订单不可评价");
+        } else if (Integer.valueOf(2).equals(request.getOrderType())) {
+            com.whlg.hospital.entity.Consult consult = consultMapper.selectById(request.getOrderId());
+            check(consult != null && userId.equals(consult.getUserId())
+                    && Integer.valueOf(4).equals(consult.getStatus())
+                    && request.getDoctorId().equals(consult.getDoctorId()), "订单不可评价");
+        } else {
+            throw new ApiException(StatusCode.BAD_REQUEST, "订单类型不正确");
+        }
+        check(reviewMapper.selectOne(new LambdaQueryWrapper<Review>()
+                .eq(Review::getUserId, userId)
+                .eq(Review::getOrderType, request.getOrderType())
+                .eq(Review::getOrderId, request.getOrderId())) == null, "该订单已经评价");
         Review review = new Review();
         review.setOrderType(request.getOrderType());
         review.setOrderId(request.getOrderId());
         review.setDoctorId(request.getDoctorId());
         review.setContent(request.getContent());
         review.setRating(request.getRating());
-        review.setUserId(requireUserId());
+        review.setUserId(userId);
         review.setCreateTime(LocalDateTime.now());
         reviewMapper.insert(review);
+        List<Review> doctorReviews = reviewMapper.selectList(new LambdaQueryWrapper<Review>()
+                .eq(Review::getDoctorId, request.getDoctorId()));
+        double average = doctorReviews.stream().mapToInt(Review::getRating).average().orElse(5.0D);
+        doctorMapper.update(null, new LambdaUpdateWrapper<com.whlg.hospital.entity.Doctor>()
+                .eq(com.whlg.hospital.entity.Doctor::getId, request.getDoctorId())
+                .set(com.whlg.hospital.entity.Doctor::getRating,
+                        BigDecimal.valueOf(average).setScale(1, RoundingMode.HALF_UP)));
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("id", review.getId());
         return result;
@@ -207,6 +264,8 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
 
     @Override
     public Map<String, Object> createFeedback(CreateFeedbackRequest request) {
+        check(request != null && request.getType() != null && request.getType() >= 1 && request.getType() <= 3
+                && request.getContent() != null && !request.getContent().trim().isEmpty(), "反馈参数不正确");
         Feedback feedback = new Feedback();
         feedback.setUserId(requireUserId());
         feedback.setFeedbackType(request.getType());
@@ -223,6 +282,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
 
     @Override
     public PageResult<Map<String, Object>> listMyFollows(Integer type, Integer page, Integer pageSize) {
+        validateFollowType(type, true);
         Long userId = requireUserId();
         return paginate(followMapper.selectList(new LambdaQueryWrapper<Follow>()
                         .eq(Follow::getUserId, userId)
@@ -232,7 +292,21 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     }
 
     @Override
+    @Transactional
     public Map<String, Object> createFollow(Integer type, Long targetId) {
+        check(targetId != null && (Integer.valueOf(1).equals(type) || Integer.valueOf(2).equals(type)
+                || Integer.valueOf(3).equals(type)), "关注参数不正确");
+        if (Integer.valueOf(1).equals(type)) {
+            com.whlg.hospital.entity.Hospital hospital = hospitalMapper.selectById(targetId);
+            check(hospital != null, "医院不存在");
+            check(Integer.valueOf(1).equals(hospital.getStatus()), "医院不可用");
+        } else if (Integer.valueOf(2).equals(type)) {
+            com.whlg.hospital.entity.Doctor doctor = doctorMapper.selectById(targetId);
+            check(doctor != null, "医生不存在");
+            check(Integer.valueOf(1).equals(doctor.getStatus()), "医生不可用");
+        } else {
+            check(diseaseMapper.selectById(targetId) != null, "疾病不存在");
+        }
         Long userId = requireUserId();
         Follow follow = followMapper.selectOne(new LambdaQueryWrapper<Follow>()
                 .eq(Follow::getUserId, userId)
@@ -245,6 +319,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
             follow.setFollowId(targetId);
             follow.setCreateTime(LocalDateTime.now());
             followMapper.insert(follow);
+            updateFollowCount(type, targetId, 1);
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("id", follow.getId());
@@ -252,7 +327,10 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     }
 
     @Override
+    @Transactional
     public void deleteFollow(Integer type, Long targetId) {
+        validateFollowType(type, false);
+        check(targetId != null, "关注参数不正确");
         Long userId = requireUserId();
         Follow follow = followMapper.selectOne(new LambdaQueryWrapper<Follow>()
                 .eq(Follow::getUserId, userId)
@@ -260,6 +338,34 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
                 .eq(Follow::getFollowId, targetId));
         check(follow != null, "关注记录不存在");
         followMapper.deleteById(follow.getId());
+        updateFollowCount(type, targetId, -1);
+    }
+
+    private void updateFollowCount(Integer type, Long targetId, int delta) {
+        String expression = delta > 0
+                ? "follow_count = COALESCE(follow_count, 0) + 1"
+                : "follow_count = CASE WHEN follow_count > 0 THEN follow_count - 1 ELSE 0 END";
+        if (Integer.valueOf(1).equals(type)) {
+            hospitalMapper.update(null, new LambdaUpdateWrapper<com.whlg.hospital.entity.Hospital>()
+                    .eq(com.whlg.hospital.entity.Hospital::getId, targetId).setSql(expression));
+        } else if (Integer.valueOf(2).equals(type)) {
+            doctorMapper.update(null, new LambdaUpdateWrapper<com.whlg.hospital.entity.Doctor>()
+                    .eq(com.whlg.hospital.entity.Doctor::getId, targetId).setSql(expression));
+        } else {
+            diseaseMapper.update(null, new LambdaUpdateWrapper<com.whlg.hospital.entity.Disease>()
+                    .eq(com.whlg.hospital.entity.Disease::getId, targetId).setSql(expression));
+        }
+    }
+
+    private void clearDefaultFamilyMember(Long userId, Long exceptId) {
+        LambdaUpdateWrapper<FamilyMember> update = new LambdaUpdateWrapper<FamilyMember>()
+                .eq(FamilyMember::getUserId, userId)
+                .eq(FamilyMember::getIsDefault, 1)
+                .set(FamilyMember::getIsDefault, 0);
+        if (exceptId != null) {
+            update.ne(FamilyMember::getId, exceptId);
+        }
+        familyMemberMapper.update(null, update);
     }
 
     private void fillFamilyMember(FamilyMember familyMember, FamilyMemberRequest request) {
@@ -270,6 +376,17 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         familyMember.setBirthday(request.getBirthday());
         familyMember.setIdCard(request.getIdCard());
         familyMember.setIsDefault(request.getIsDefault());
+    }
+
+    private void validateFamilyMember(FamilyMemberRequest request) {
+        check(request != null && request.getName() != null && !request.getName().trim().isEmpty(), "就诊人姓名不能为空");
+        check(request.getBirthday() == null || !request.getBirthday().isAfter(LocalDate.now()), "生日不能晚于今天");
+        check(request.getIsDefault() == null || request.getIsDefault() == 0 || request.getIsDefault() == 1, "默认就诊人标记不正确");
+    }
+
+    private void validateFollowType(Integer type, boolean allowNull) {
+        check((allowNull && type == null) || Integer.valueOf(1).equals(type)
+                || Integer.valueOf(2).equals(type) || Integer.valueOf(3).equals(type), "非法关注类型");
     }
 
     private Map<String, Object> familyMemberMap(FamilyMember item) {

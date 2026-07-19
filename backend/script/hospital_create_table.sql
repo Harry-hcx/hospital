@@ -27,6 +27,7 @@ CREATE TABLE `t_appointment` (
   `user_id` bigint(20) NOT NULL COMMENT '用户ID',
   `doctor_id` bigint(20) NOT NULL COMMENT '医生ID',
   `hospital_id` bigint(20) NOT NULL COMMENT '医院ID',
+  `schedule_id` bigint(20) DEFAULT NULL COMMENT '排班ID',
   `patient_name` varchar(50) NOT NULL COMMENT '就诊人姓名',
   `patient_phone` varchar(20) DEFAULT NULL COMMENT '就诊人电话',
   `patient_id_card` varchar(18) DEFAULT NULL COMMENT '就诊人身份证号',
@@ -230,6 +231,7 @@ CREATE TABLE `t_hospital` (
   `image` varchar(255) DEFAULT 'img/hospital.jpg' COMMENT '医院图片',
   `province` varchar(50) DEFAULT NULL COMMENT '省份',
   `city` varchar(50) DEFAULT NULL COMMENT '城市',
+  `district` varchar(50) DEFAULT NULL COMMENT '区县',
   `department_count` int(11) DEFAULT '0' COMMENT '科室数量',
   `doctor_count` int(11) DEFAULT '0' COMMENT '医生数量',
   `follow_count` int(11) DEFAULT '0' COMMENT '关注数量',
@@ -300,7 +302,8 @@ CREATE TABLE `t_review` (
   `rating` int(11) NOT NULL COMMENT '评分(1-5)',
   `content` text COMMENT '评价内容',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_review_order` (`user_id`,`order_type`,`order_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8 COMMENT='评价表';
 
 /*Table structure for table `t_schedule` */

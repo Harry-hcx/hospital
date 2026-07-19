@@ -22,6 +22,7 @@ class AuthApiTest extends BaseApiTest {
         request.put("password", "123456");
         request.put("confirmPassword", "123456");
         request.put("captcha", "8888");
+        request.put("gender", 2);
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -42,7 +43,8 @@ class AuthApiTest extends BaseApiTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.token").isString())
-                .andExpect(jsonPath("$.data.userInfo.phone").value("13800138000"));
+                .andExpect(jsonPath("$.data.userInfo.phone").value("13800138000"))
+                .andExpect(jsonPath("$.data.userInfo.gender").value(1));
     }
 
     @Test

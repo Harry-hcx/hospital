@@ -24,9 +24,9 @@
           <div class="schedule-options">
             <div class="schedule-option" v-for="s in schedules" :key="s.id" :class="{ active: form.scheduleId === s.id }" @click="form.scheduleId = s.id">
               <div>{{ s.scheduleDate }}</div>
-              <div>{{ s.period === 1 ? '上午' : s.period === 2 ? '下午' : '晚上' }}</div>
-              <div class="fee">¥{{ s.fee }}</div>
-              <div>剩余 {{ s.remainNum }}</div>
+              <div>{{ s.timeSlot }}</div>
+              <div class="fee">¥{{ s.registrationPrice }}</div>
+              <div>剩余 {{ s.remainCount }}</div>
             </div>
           </div>
           <div class="empty" v-if="schedules.length === 0">暂无排班</div>
@@ -73,6 +73,8 @@ const doctor = ref({})
 const schedules = ref([])
 const members = ref([])
 const submitting = ref(false)
+const loading = ref(false)
+const loadError = ref('')
 const defaultImg = resolveImageUrl('doctor-male-doc.jpg', 'doctor-male-doc.jpg')
 
 const form = ref({
@@ -98,17 +100,19 @@ onMounted(async () => {
 })
 
 async function handleSubmit() {
+  if (!doctor.value.id) { alert('医生信息未加载完成'); return }
   if (!form.value.scheduleId) { alert('请选择排班'); return }
   if (!form.value.familyMemberId) { alert('请选择就诊人'); return }
   submitting.value = true
   try {
     const res = await createAppointment({
       scheduleId: form.value.scheduleId,
-      familyMemberId: form.value.familyMemberId,
+      familyMemberId: Number(form.value.familyMemberId),
       diseaseDesc: form.value.diseaseDesc
     })
     const d = res?.data || {}
     const orderNo = d.orderNo || d.id
+    if (!orderNo) { alert('预约创建成功但未返回订单号'); return }
     router.push(`/reservation/pay/${orderNo}`)
   } catch (e) {
     console.error('预约失败', e)

@@ -18,10 +18,10 @@
           <label>等级：</label>
           <select v-model="filters.level" @change="handleSearch">
             <option value="">全部等级</option>
-            <option value="三级甲等">三级甲等</option>
-            <option value="三级乙等">三级乙等</option>
-            <option value="二级甲等">二级甲等</option>
-            <option value="二级乙等">二级乙等</option>
+            <option value="三甲">三甲</option>
+            <option value="三乙">三乙</option>
+            <option value="二甲">二甲</option>
+            <option value="二乙">二乙</option>
           </select>
         </div>
         <div class="filter-item">
@@ -35,7 +35,7 @@
         <div class="hospital-card" v-for="h in hospitals" :key="h.id" @click="$router.push(`/hospital/${h.id}`)">
           <img :src="resolveHospitalImage(h)" :alt="h.name" class="hospital-img" />
           <div class="hospital-info">
-            <h3>{{ h.name }} <span class="level-tag">{{ h.level || '三级甲等' }}</span></h3>
+            <h3>{{ h.name }} <span class="level-tag">{{ h.level || '三甲' }}</span></h3>
             <p class="addr">{{ h.province }}{{ h.city }}{{ h.district || '' }} {{ h.address || '' }}</p>
             <p class="desc">{{ h.description || '暂无简介' }}</p>
             <div class="hospital-tags">
@@ -47,6 +47,7 @@
       </div>
 
       <div class="empty" v-if="!loading && hospitals.length === 0">暂无医院数据</div>
+      <div class="error" v-if="!loading && error">{{ error }}</div>
       <div class="loading" v-if="loading">加载中...</div>
 
       <Pagination
@@ -75,6 +76,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
+const error = ref('')
 
 const resolveHospitalImage = (hospital) => resolveImageUrl(hospital?.image || hospital?.avatar, 'hospital_100001977.jpg')
 
@@ -97,6 +99,7 @@ onMounted(async () => {
 
 async function fetchData() {
   loading.value = true
+  error.value = ''
   try {
     const res = await getHospitals({
       page: page.value,
@@ -107,6 +110,7 @@ async function fetchData() {
     hospitals.value = d.records || []
     total.value = d.total || 0
   } catch (e) {
+    error.value = '医院列表加载失败，请稍后重试'
     console.error('加载医院列表失败', e)
   } finally {
     loading.value = false
@@ -245,7 +249,7 @@ function handlePageChange(p) {
   color: var(--text-muted);
 }
 
-.empty, .loading {
+.empty, .loading, .error {
   text-align: center;
   padding: 60px;
   color: var(--text-muted);

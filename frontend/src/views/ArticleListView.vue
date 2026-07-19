@@ -29,7 +29,7 @@
             <p class="summary">{{ a.summary || '' }}</p>
             <div class="article-meta">
               <span v-if="a.departmentName">{{ a.departmentName }}</span>
-              <span>{{ a.createTime }}</span>
+              <span>{{ a.publishTime || a.createTime }}</span>
               <span v-if="a.viewCount">{{ a.viewCount }} 阅读</span>
             </div>
           </div>
@@ -37,6 +37,7 @@
       </div>
 
       <div class="empty" v-if="!loading && articles.length === 0">暂无文章</div>
+      <div class="error" v-if="!loading && error">{{ error }}</div>
       <div class="loading" v-if="loading">加载中...</div>
 
       <Pagination :total="total" :current="page" :pageSize="pageSize" @change="handlePageChange" />
@@ -60,6 +61,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
+const error = ref('')
 
 const resolveArticleImage = (article) => resolveImageUrl(article?.cover || article?.image, 'health_01.jpeg')
 
@@ -75,12 +77,16 @@ onMounted(async () => {
 
 async function fetchData() {
   loading.value = true
+  error.value = ''
   try {
     const res = await getArticles({ page: page.value, pageSize: pageSize.value, ...filters.value })
     const d = res?.data || {}
     articles.value = d.records || []
     total.value = d.total || 0
-  } catch (e) { console.error('加载文章列表失败', e) }
+  } catch (e) {
+    error.value = '文章列表加载失败，请稍后重试'
+    console.error('加载文章列表失败', e)
+  }
   finally { loading.value = false }
 }
 
@@ -112,7 +118,7 @@ function handlePageChange(p) { page.value = p; fetchData() }
 .article-body h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
 .summary { font-size: 14px; color: var(--text-light); line-height: 1.6; flex: 1; }
 .article-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); margin-top: 10px; }
-.empty, .loading { text-align: center; padding: 60px; color: var(--text-muted); }
+.empty, .loading, .error { text-align: center; padding: 60px; color: var(--text-muted); }
 @media (max-width: 600px) {
   .article-card { flex-direction: column; }
   .article-img { width: 100%; height: 180px; }

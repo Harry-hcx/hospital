@@ -53,15 +53,19 @@ import { getFamilyMembers, createFamilyMember, updateFamilyMember, deleteFamilyM
 const members = ref([])
 const showForm = ref(false)
 const editingId = ref(null)
+const loading = ref(false)
+const loadError = ref('')
 const form = ref({ name: '', gender: 1, birthday: '', phone: '', idCard: '', relation: '本人' })
 
 onMounted(fetchMembers)
 
 async function fetchMembers() {
+  loading.value = true
   try {
     const res = await getFamilyMembers()
     members.value = (res.data.data || res.data) || []
-  } catch (e) { console.error('加载就诊人失败', e) }
+  } catch (e) { loadError.value = '加载就诊人失败，请稍后重试'; console.error('加载就诊人失败', e) }
+  finally { loading.value = false }
 }
 
 function editMember(m) {
@@ -73,14 +77,14 @@ function editMember(m) {
 async function handleSave() {
   try {
     if (editingId.value) {
-      await updateFamilyMember(editingId.value, form.value)
+      await updateFamilyMember(editingId.value, { ...form.value, gender: Number(form.value.gender) })
     } else {
-      await createFamilyMember(form.value)
+      await createFamilyMember({ ...form.value, gender: Number(form.value.gender) })
     }
     showForm.value = false
     editingId.value = null
     form.value = { name: '', gender: 1, birthday: '', phone: '', idCard: '', relation: '本人' }
-    fetchMembers()
+    await fetchMembers()
   } catch (e) { console.error('保存失败', e); alert('保存失败') }
 }
 
@@ -88,7 +92,7 @@ async function handleDelete(id) {
   if (!confirm('确认删除？')) return
   try {
     await deleteFamilyMember(id)
-    fetchMembers()
+    await fetchMembers()
   } catch (e) { console.error('删除失败', e) }
 }
 </script>

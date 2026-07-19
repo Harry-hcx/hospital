@@ -35,7 +35,7 @@
         <div class="form-group">
           <label>性别</label>
           <select v-model="form.gender">
-            <option value="">请选择</option>
+            <option disabled value="">请选择性别</option>
             <option value="1">男</option>
             <option value="2">女</option>
           </select>
@@ -57,7 +57,7 @@ import { useRouter } from 'vue-router'
 import { registerApi, sendCaptchaApi } from '@/api/auth'
 
 const router = useRouter()
-const form = reactive({ phone: '', captcha: '', password: '', confirmPassword: '' })
+const form = reactive({ phone: '', captcha: '', password: '', confirmPassword: '', realName: '', email: '', gender: '' })
 const captchaCountdown = ref(0)
 const sendingCaptcha = ref(false)
 const loading = ref(false)
@@ -106,16 +106,19 @@ async function handleRegister() {
   if (!/^1[3-9]\d{9}$/.test(form.phone)) return alert('请输入正确的手机号')
   if (form.password.length < 6) return alert('密码至少6位')
   if (form.password !== form.confirmPassword) return alert('两次密码不一致')
+  if (!form.gender) return alert('请选择性别')
 
   loading.value = true
   try {
     await registerApi({
       username: form.phone,
       phone: form.phone,
+      captcha: form.captcha,
       password: form.password,
+      confirmPassword: form.confirmPassword,
       realName: form.realName || undefined,
       email: form.email || undefined,
-      gender: form.gender || undefined,
+      gender: Number(form.gender),
     })
     alert('注册成功！即将跳转登录页')
     router.push('/login')

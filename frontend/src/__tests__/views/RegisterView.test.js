@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import RegisterView from '@/views/RegisterView.vue'
+import { registerApi } from '@/api/auth'
 
 vi.mock('@/api/auth', () => ({
   registerApi: vi.fn().mockResolvedValue({ code: 200, data: { userId: 2 } }),
@@ -55,8 +56,16 @@ describe('RegisterView', () => {
     await inputs[1].setValue('123456')
     await inputs[2].setValue('123456')
     await inputs[3].setValue('123456')
+    await wrapper.find('select').setValue('1')
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
     expect(wrapper.exists()).toBe(true)
+    expect(registerApi).toHaveBeenCalledWith(expect.objectContaining({
+      phone: '13800001111',
+      captcha: '123456',
+      password: '123456',
+      confirmPassword: '123456',
+      gender: 1,
+    }))
   })
 })

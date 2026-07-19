@@ -46,6 +46,7 @@ backend/src/main/resources/application-dev.yml
 
 # Backend build
 backend/target/
+backend/db-backups/
 
 #docs
 原型/

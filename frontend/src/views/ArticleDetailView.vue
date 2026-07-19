@@ -10,7 +10,7 @@
         <h1>{{ article.title }}</h1>
         <div class="article-meta">
           <span v-if="article.departmentName">{{ article.departmentName }}</span>
-          <span>{{ article.createTime }}</span>
+          <span>{{ article.publishTime || article.createTime }}</span>
           <span v-if="article.viewCount">{{ article.viewCount }} 阅读</span>
         </div>
         <div class="article-cover" v-if="articleCover">

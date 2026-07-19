@@ -25,6 +25,8 @@ public interface OrderService {
 
     Map<String, Object> getConsult(String orderNo);
 
+    void cancelConsult(String orderNo);
+
     Map<String, Object> payConsult(String orderNo, PayRequest request);
 
     PageResult<Map<String, Object>> listMyConsults(Integer page, Integer pageSize, Integer status);

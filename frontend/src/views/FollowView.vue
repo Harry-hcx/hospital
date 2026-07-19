@@ -12,11 +12,9 @@
           <div class="follow-card" v-for="item in list" :key="item.id">
             <div class="follow-info">
               <h4>{{ item.name || item.title }}</h4>
-              <p v-if="activeType === 1">{{ item.level }}</p>
-              <p v-if="activeType === 2">{{ item.hospitalName }} · {{ item.departmentName }}</p>
-              <p v-if="activeType === 3">{{ item.departmentName }}</p>
+              <p>关注对象 ID：{{ item.followId }}</p>
             </div>
-            <button class="btn-unfollow" @click="handleUnfollow(item.id)">取消关注</button>
+            <button class="btn-unfollow" @click="handleUnfollow(item.followId)">取消关注</button>
           </div>
         </div>
         <div class="empty" v-if="list.length === 0">暂无关注</div>
@@ -64,6 +62,7 @@ function switchTab(type) { activeType.value = type; page.value = 1; fetchData() 
 function handlePage(p) { page.value = p; fetchData() }
 
 async function handleUnfollow(id) {
+  if (!id) return
   try {
     await deleteFollow(activeType.value, id)
     fetchData()

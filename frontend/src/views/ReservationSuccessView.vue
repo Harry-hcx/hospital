@@ -7,11 +7,11 @@
         <h2>预约成功</h2>
         <div class="order-info" v-if="order.orderNo">
           <p>订单编号：{{ order.orderNo }}</p>
-          <p>医生：{{ order.doctorName }}</p>
-          <p>医院：{{ order.hospitalName }}</p>
-          <p>就诊时间：{{ order.scheduleDate }} {{ order.periodText }}</p>
-          <p>就诊人：{{ order.familyMemberName }}</p>
-          <p class="fee">已支付：¥{{ order.amount }}</p>
+          <p>医生：{{ order.doctor }}</p>
+          <p>医院：{{ order.hospital }}</p>
+          <p>就诊时间：{{ order.date }} {{ order.timeSlot }}</p>
+          <p>就诊人：{{ order.patientName }}</p>
+          <p class="fee">费用：¥{{ order.fee }}</p>
         </div>
         <div class="actions">
           <router-link to="/my-appointments" class="btn-primary">查看订单</router-link>
@@ -36,7 +36,7 @@ const order = ref({})
 onMounted(async () => {
   try {
     const res = await getAppointmentDetail(route.params.orderNo)
-    order.value = res.data.data || res.data
+    order.value = res?.data || {}
   } catch (e) { console.error('加载预约结果失败', e) }
 })
 </script>

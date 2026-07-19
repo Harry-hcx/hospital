@@ -23,7 +23,7 @@ export function updateFamilyMember(id, data) {
 }
 
 export function deleteFamilyMember(id) {
-  return request.delete(`/family-members/${id}`)
+  return request.delete(`/family-members/${id}`, { data: {} })
 }
 
 // 评价
@@ -41,11 +41,11 @@ export function getMyFollows(params) {
 }
 
 export function createFollow(type, id) {
-  return request.post(`/follow/${type}/${id}`)
+  return request.post(`/follow/${type}/${id}`, {})
 }
 
 export function deleteFollow(type, id) {
-  return request.delete(`/follow/${type}/${id}`)
+  return request.delete(`/follow/${type}/${id}`, { data: {} })
 }
 
 // 消息
@@ -54,12 +54,12 @@ export function getMessages(params) {
 }
 
 export function markMessageRead(id) {
-  return request.post(`/messages/${id}/read`)
+  return request.post(`/messages/${id}/read`, {})
 }
 
 // 反馈
 export function getMyFeedbacks(params) {
-  return request.get('/feedbacks/my', { params })
+  return request.get('/feedbacks', { params })
 }
 
 export function createFeedback(data) {

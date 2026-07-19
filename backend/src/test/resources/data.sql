@@ -1,5 +1,5 @@
 INSERT INTO t_user (id, username, password, phone, email, real_name, gender, birthday, avatar, status, create_time, update_time) VALUES
-(1, '13800138000', '123456', '13800138000', 'harry@example.com', '张三', 1, DATE '1990-01-01', '/avatar/user-1.png', 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
+(1, '13800138000', 'pbkdf2$120000$aG9zcGl0YWwtdGVzdC1zYWx0LTIwMjY=$y3e+Ejte/SRbFvvJJSs4de1Lbef1pNZtOQN/+0b33ag=', '13800138000', 'harry@example.com', '张三', 1, DATE '1990-01-01', '/avatar/user-1.png', 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 INSERT INTO t_department (id, name, description, parent_id, sort_order, status, create_time) VALUES
 (1, '内科', '内科', 0, 1, 1, CURRENT_TIMESTAMP()),
@@ -8,7 +8,7 @@ INSERT INTO t_department (id, name, description, parent_id, sort_order, status, 
 (4, '骨科', '骨科', 3, 1, 1, CURRENT_TIMESTAMP());
 
 INSERT INTO t_hospital (id, name, level, address, phone, intro, image, province, city, department_count, doctor_count, follow_count, status, create_time, update_time) VALUES
-(1, '北京第一人民医院', '三甲', '北京市朝阳区健康路1号', '010-10000001', '综合性三甲医院', '/img/hospital-1.png', '北京', '北京', 2, 2, 120, 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
+(1, '北京第一人民医院', '三甲', '北京市朝阳区健康路1号', '010-10000001', '综合性三甲医院', '/img/hospital-1.png', '北京', '北京', 4, 2, 120, 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
 (2, '上海瑞康医院', '三甲', '上海市浦东新区仁心路8号', '021-20000002', '专注慢病管理', '/img/hospital-2.png', '上海', '上海', 2, 1, 80, 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 INSERT INTO t_hospital_department (id, hospital_id, department_id, create_time) VALUES
@@ -20,7 +20,7 @@ INSERT INTO t_hospital_department (id, hospital_id, department_id, create_time) 
 (6, 2, 2, CURRENT_TIMESTAMP());
 
 INSERT INTO t_doctor (id, name, gender, title, department_id, hospital_id, avatar, phone, intro, expertise, consult_count, rating, follow_count, online_status, price, registration_price, status, create_time, update_time) VALUES
-(1, '李主任', 1, '主任医师', 2, 1, '/img/doctor-1.png', '13811110001', '擅长冠心病与高血压诊疗', '冠心病,高血压,心衰', 2680, 4.9, 300, 1, 39.90, 18.00, 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
+(1, '李主任', 1, '主任医师', 2, 1, '/img/doctor-1.png', '13811110001', '擅长冠心病与高血压诊疗', '冠心病,高血压,心衰', 2680, 5.0, 300, 1, 39.90, 18.00, 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
 (2, '王医生', 2, '副主任医师', 4, 1, '/img/doctor-2.png', '13811110002', '擅长关节损伤与康复', '膝关节,髋关节,骨折康复', 1520, 4.7, 180, 1, 29.90, 20.00, 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
 (3, '周医生', 1, '主治医师', 2, 2, '/img/doctor-3.png', '13811110003', '擅长慢病随访', '高血压,糖尿病', 980, 4.6, 120, 1, 25.00, 15.00, 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
@@ -28,6 +28,12 @@ INSERT INTO t_schedule (id, doctor_id, hospital_id, department_id, schedule_date
 (1, 1, 1, 2, DATEADD('DAY', 1, CURRENT_DATE()), '08:00-09:00', 20, 8, 1, CURRENT_TIMESTAMP()),
 (2, 1, 1, 2, DATEADD('DAY', 2, CURRENT_DATE()), '09:00-10:00', 20, 5, 1, CURRENT_TIMESTAMP()),
 (3, 2, 1, 4, DATEADD('DAY', 1, CURRENT_DATE()), '14:00-15:00', 15, 3, 1, CURRENT_TIMESTAMP());
+
+INSERT INTO t_schedule (id, doctor_id, hospital_id, department_id, schedule_date, time_slot, total_count, remain_count, status, create_time) VALUES
+(4, 3, 2, 2, DATEADD('DAY', 3, CURRENT_DATE()), '09:00-10:00', 10, 10, 1, CURRENT_TIMESTAMP()),
+(5, 1, 1, 2, DATEADD('DAY', 7, CURRENT_DATE()), '10:00-11:00', 20, 20, 1, CURRENT_TIMESTAMP()),
+(6, 2, 1, 4, DATEADD('DAY', 10, CURRENT_DATE()), '15:00-16:00', 15, 15, 1, CURRENT_TIMESTAMP()),
+(7, 1, 1, 2, DATEADD('DAY', -2, CURRENT_DATE()), '08:00-09:00', 20, 19, 0, CURRENT_TIMESTAMP());
 
 INSERT INTO t_article (id, title, summary, content, department_id, author, image, views, status, publish_time, create_time, update_time) VALUES
 (1, '高血压日常管理', '从饮食到运动的完整建议', '文章正文1', 2, '编辑部', '/img/article-1.png', 1200, 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
@@ -41,18 +47,25 @@ INSERT INTO t_family_member (id, user_id, name, gender, birthday, phone, id_card
 (1, 1, '张三', 1, DATE '1990-01-01', '13800138000', '110101199001010011', '本人', 1, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
 (2, 1, '李四', 2, DATE '1992-02-02', '13800138001', '110101199202020022', '配偶', 0, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
-INSERT INTO t_appointment (id, order_no, user_id, doctor_id, hospital_id, patient_name, patient_phone, patient_id_card, patient_gender, patient_age, appointment_date, appointment_time, disease_desc, amount, status, pay_time, create_time, update_time) VALUES
-(1, 'AP202607170001', 1, 1, 1, '张三', '13800138000', '110101199001010011', 1, 36, DATEADD('DAY', 1, CURRENT_DATE()), '08:00-09:00', '血压偏高', 18.00, 2, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
+INSERT INTO t_appointment (id, order_no, user_id, doctor_id, hospital_id, schedule_id, patient_name, patient_phone, patient_id_card, patient_gender, patient_age, appointment_date, appointment_time, disease_desc, amount, status, pay_time, create_time, update_time) VALUES
+(1, 'AP202607170001', 1, 1, 1, 2, '张三', '13800138000', '110101199001010011', 1, 36, DATEADD('DAY', 2, CURRENT_DATE()), '09:00-10:00', '血压偏高', 18.00, 1, NULL, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
+(2, 'AP202607170002', 1, 1, 1, 7, '张三', '13800138000', '110101199001010011', 1, 36, DATEADD('DAY', -2, CURRENT_DATE()), '08:00-09:00', '历史复诊', 18.00, 3, DATEADD('DAY', -3, CURRENT_TIMESTAMP()), DATEADD('DAY', -4, CURRENT_TIMESTAMP()), CURRENT_TIMESTAMP());
 
 INSERT INTO t_consult (id, order_no, user_id, doctor_id, patient_name, patient_phone, disease_desc, appointment_time, duration, amount, status, pay_time, create_time, update_time) VALUES
-(1, 'CO202607170001', 1, 1, '张三', '13800138000', '复诊咨询', DATEADD('DAY', 1, CURRENT_TIMESTAMP()), 15, 39.90, 2, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
+(1, 'CO202607170001', 1, 1, '张三', '13800138000', '复诊咨询', DATEADD('DAY', 1, CURRENT_TIMESTAMP()), 15, 39.90, 1, NULL, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
+INSERT INTO t_consult (id, order_no, user_id, doctor_id, patient_name, patient_phone, disease_desc, appointment_time, duration, amount, status, pay_time, create_time, update_time) VALUES
+(2, 'CO202607170002', 1, 1, '张三', '13800138000', '已完成咨询', DATEADD('DAY', -1, CURRENT_TIMESTAMP()), 15, 39.90, 4, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 INSERT INTO t_payment_flow (id, business_order_no, business_type, pay_method, third_party_trade_no, actual_amount, pay_status, pay_success_time, original_callback, create_time, update_time) VALUES
-(1, 'AP202607170001', 1, 2, 'WX-AP-0001', 18.00, 1, CURRENT_TIMESTAMP(), 'callback-ok', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
-(2, 'CO202607170001', 2, 1, 'ALI-CO-0001', 39.90, 1, CURRENT_TIMESTAMP(), 'callback-ok', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
+(1, 'AP202607170001', 1, 2, 'WX-AP-0001', 18.00, 0, NULL, NULL, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
+(2, 'CO202607170001', 2, 1, 'ALI-CO-0001', 39.90, 0, NULL, NULL, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()),
+(4, 'AP202607170002', 1, 1, 'ALI-AP-0002', 18.00, 1, DATEADD('DAY', -3, CURRENT_TIMESTAMP()), 'seed-completed', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
+
+INSERT INTO t_payment_flow (id, business_order_no, business_type, pay_method, third_party_trade_no, actual_amount, pay_status, pay_success_time, original_callback, create_time, update_time) VALUES
+(3, 'CO202607170002', 2, 1, 'ALI-CO-0002', 39.90, 1, CURRENT_TIMESTAMP(), 'seed-completed', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
 
 INSERT INTO t_review (id, order_type, order_id, user_id, doctor_id, rating, content, create_time) VALUES
-(1, 1, 1, 1, 1, 5, '医生讲解很清楚', CURRENT_TIMESTAMP());
+(1, 1, 2, 1, 1, 5, '医生讲解很清楚', CURRENT_TIMESTAMP());
 
 INSERT INTO t_feedback (id, user_id, feedback_type, content, images, status, reply_content, reply_time, create_time, update_time) VALUES
 (1, 1, 1, '首页轮播图加载较慢', '/img/f1.png,/img/f2.png', 1, NULL, NULL, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());

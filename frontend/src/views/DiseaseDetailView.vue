@@ -13,9 +13,9 @@
           <h3>疾病简介</h3>
           <p class="content">{{ disease.description || '暂无简介' }}</p>
         </div>
-        <div class="section" v-if="disease.symptom">
+        <div class="section" v-if="disease.symptoms || disease.symptom">
           <h3>常见症状</h3>
-          <p class="content">{{ disease.symptom }}</p>
+          <p class="content">{{ disease.symptoms || disease.symptom }}</p>
         </div>
         <div class="section" v-if="disease.treatment">
           <h3>治疗方法</h3>
@@ -42,7 +42,7 @@ import { useRoute } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import { getDiseaseDetail } from '@/api/disease'
-import { createFollow, deleteFollow } from '@/api/user'
+import { createFollow, deleteFollow, getMyFollows } from '@/api/user'
 
 const route = useRoute()
 const disease = ref({})
@@ -52,6 +52,11 @@ onMounted(async () => {
   try {
     const res = await getDiseaseDetail(route.params.id)
     disease.value = res.data.data || res.data
+    if (localStorage.getItem('token')) {
+      const fRes = await getMyFollows({ type: 3, page: 1, pageSize: 1000 })
+      const fd = fRes.data.data || fRes.data
+      isFollowed.value = (fd.records || []).some(item => Number(item.followId) === Number(route.params.id))
+    }
   } catch (e) { console.error('加载疾病详情失败', e) }
 })
 

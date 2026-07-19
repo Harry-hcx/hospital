@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -70,6 +71,40 @@ class UserCenterApiTest extends BaseApiTest {
     }
 
     @Test
+    void shouldKeepOnlyOneDefaultFamilyMember() throws Exception {
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("name", "新的默认就诊人");
+        request.put("relation", "其他");
+        request.put("isDefault", 1);
+
+        mockMvc.perform(post("/api/family-members")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/family-members").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.isDefault == 1)]", hasSize(1)));
+    }
+
+    @Test
+    void shouldAllowFamilyMemberWithoutBirthday() throws Exception {
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("name", "未填生日");
+        request.put("relation", "其他");
+        request.put("isDefault", 0);
+
+        mockMvc.perform(post("/api/family-members")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").isNumber());
+    }
+
+    @Test
     void shouldUpdateFamilyMember() throws Exception {
         Map<String, Object> request = new HashMap<String, Object>();
         request.put("name", "张三-更新");
@@ -105,8 +140,8 @@ class UserCenterApiTest extends BaseApiTest {
     @Test
     void shouldCreateReview() throws Exception {
         Map<String, Object> request = new HashMap<String, Object>();
-        request.put("orderType", 1);
-        request.put("orderId", 1);
+        request.put("orderType", 2);
+        request.put("orderId", 2);
         request.put("doctorId", 1);
         request.put("content", "服务很好");
         request.put("rating", 5);
@@ -117,6 +152,44 @@ class UserCenterApiTest extends BaseApiTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").isNumber());
+
+        mockMvc.perform(get("/api/doctors/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.rating").value(5.0));
+    }
+
+    @Test
+    void shouldRejectDuplicateReview() throws Exception {
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("orderType", 1);
+        request.put("orderId", 2);
+        request.put("doctorId", 1);
+        request.put("content", "重复评价");
+        request.put("rating", 3);
+
+        mockMvc.perform(post("/api/reviews")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void shouldRejectReviewBeforeAppointmentCompleted() throws Exception {
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("orderType", 1);
+        request.put("orderId", 1);
+        request.put("doctorId", 1);
+        request.put("content", "尚未就诊");
+        request.put("rating", 5);
+
+        mockMvc.perform(post("/api/reviews")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test
@@ -174,6 +247,27 @@ class UserCenterApiTest extends BaseApiTest {
         mockMvc.perform(post("/api/follow/2/2").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").isNumber());
+    }
+
+    @Test
+    void shouldRejectFollowForMissingTarget() throws Exception {
+        mockMvc.perform(post("/api/follow/2/9999").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void shouldRejectInvalidFeedback() throws Exception {
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("type", 9);
+        request.put("content", "");
+
+        mockMvc.perform(post("/api/feedbacks")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test

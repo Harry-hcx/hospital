@@ -17,13 +17,22 @@
             <div class="order-body">
               <p>医生：{{ o.doctorName }}</p>
               <p>医院：{{ o.hospitalName }}</p>
-              <p>就诊时间：{{ o.scheduleDate }} {{ o.periodText }}</p>
-              <p>就诊人：{{ o.familyMemberName }}</p>
+              <p>就诊时间：{{ o.appointmentDate }} {{ o.appointmentTime }}</p>
+              <p>就诊人：{{ o.patientName }}</p>
               <p class="fee">¥{{ o.amount }}</p>
             </div>
-            <div class="order-actions" v-if="o.status === 0 || o.status === 1">
-              <button v-if="o.status === 0" class="btn-primary" @click="$router.push(`/reservation/pay/${o.orderNo}`)">去支付</button>
-              <button v-if="o.status === 1" class="btn-cancel" @click="handleCancel(o.orderNo)">取消预约</button>
+            <div class="order-actions" v-if="o.status === 1">
+              <button class="btn-primary" @click="$router.push(`/reservation/pay/${o.orderNo}`)">去支付</button>
+              <button class="btn-cancel" @click="handleCancel(o.orderNo)">取消预约</button>
+            </div>
+            <div class="review-form" v-if="o.status === 3 && reviewedOrderIds.has(o.id)">已评价</div>
+            <div class="review-form" v-else-if="o.status === 3">
+              <button v-if="reviewingId !== o.id" class="btn-review" @click="openReview(o)">评价医生</button>
+              <div v-else>
+                <RateStar v-model="reviewRating" :size="'20px'" />
+                <textarea v-model="reviewContent" rows="3" placeholder="请输入评价"></textarea>
+                <button class="btn-primary" :disabled="reviewSubmitting" @click="submitReview(o, 1)">提交评价</button>
+              </div>
             </div>
           </div>
         </div>
@@ -42,34 +51,68 @@ import AppFooter from '@/components/AppFooter.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import Pagination from '@/components/Pagination.vue'
 import { getMyAppointments, cancelAppointment } from '@/api/appointment'
+import { createReview, getMyReviews } from '@/api/user'
+import RateStar from '@/components/RateStar.vue'
 
 const orders = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const status = ref('')
+const reviewingId = ref(null)
+const reviewRating = ref(5)
+const reviewContent = ref('')
+const reviewSubmitting = ref(false)
+const reviewedOrderIds = ref(new Set())
 const tabs = [
   { label: '全部', value: '' },
-  { label: '待支付', value: '0' },
-  { label: '已预约', value: '1' },
-  { label: '已完成', value: '2' },
-  { label: '已取消', value: '3' }
+  { label: '待支付', value: 1 },
+  { label: '已预约', value: 2 },
+  { label: '已完成', value: 3 },
+  { label: '已取消', value: 4 }
 ]
-const statusMap = { 0: '待支付', 1: '已预约', 2: '已完成', 3: '已取消' }
+const statusMap = { 1: '待支付', 2: '已预约', 3: '已完成', 4: '已取消' }
 
 onMounted(fetchData)
 
 async function fetchData() {
   try {
-    const res = await getMyAppointments({ page: page.value, pageSize: pageSize.value, status: status.value })
+    const params = { page: page.value, pageSize: pageSize.value }
+    if (status.value !== '') params.status = status.value
+    const [res, reviewRes] = await Promise.all([
+      getMyAppointments(params),
+      getMyReviews({ page: 1, pageSize: 1000 }),
+    ])
     const d = res.data.data || res.data
     orders.value = d.records || []
     total.value = d.total || 0
+    const reviewData = reviewRes.data.data || reviewRes.data
+    reviewedOrderIds.value = new Set((reviewData.records || [])
+      .filter((item) => item.orderType === 1)
+      .map((item) => item.orderId))
   } catch (e) { console.error('加载预约列表失败', e) }
 }
 
 function switchTab(v) { status.value = v; page.value = 1; fetchData() }
 function handlePage(p) { page.value = p; fetchData() }
+
+function openReview(order) {
+  reviewingId.value = order.id
+  reviewRating.value = 5
+  reviewContent.value = ''
+}
+
+async function submitReview(order, orderType) {
+  if (!reviewContent.value.trim()) { alert('请输入评价内容'); return }
+  reviewSubmitting.value = true
+  try {
+    await createReview({ orderType, orderId: order.id, doctorId: order.doctorId, rating: reviewRating.value, content: reviewContent.value.trim() })
+    reviewedOrderIds.value = new Set([...reviewedOrderIds.value, order.id])
+    reviewingId.value = null
+    alert('评价提交成功')
+  } catch (e) { alert('评价提交失败，请稍后重试'); console.error('评价提交失败', e) }
+  finally { reviewSubmitting.value = false }
+}
 
 async function handleCancel(orderNo) {
   if (!confirm('确认取消预约？')) return

@@ -27,7 +27,7 @@ CREATE TABLE t_user (
   gender INT,
   birthday DATE,
   avatar VARCHAR(255),
-  status INT,
+  status INT DEFAULT 1,
   create_time TIMESTAMP,
   update_time TIMESTAMP
 );
@@ -53,7 +53,8 @@ CREATE TABLE t_family_member (
   relation VARCHAR(32),
   is_default INT,
   create_time TIMESTAMP,
-  update_time TIMESTAMP
+  update_time TIMESTAMP,
+  CONSTRAINT fk_family_member_user FOREIGN KEY (user_id) REFERENCES t_user(id)
 );
 
 CREATE TABLE t_hospital (
@@ -66,6 +67,7 @@ CREATE TABLE t_hospital (
   image VARCHAR(255),
   province VARCHAR(64),
   city VARCHAR(64),
+  district VARCHAR(64),
   department_count INT,
   doctor_count INT,
   follow_count INT,
@@ -132,6 +134,7 @@ CREATE TABLE t_appointment (
   user_id BIGINT NOT NULL,
   doctor_id BIGINT NOT NULL,
   hospital_id BIGINT NOT NULL,
+  schedule_id BIGINT,
   patient_name VARCHAR(64),
   patient_phone VARCHAR(32),
   patient_id_card VARCHAR(32),
@@ -215,7 +218,9 @@ CREATE TABLE t_follow (
   user_id BIGINT NOT NULL,
   follow_type INT,
   follow_id BIGINT,
-  create_time TIMESTAMP
+  create_time TIMESTAMP,
+  UNIQUE KEY uk_user_follow (user_id, follow_type, follow_id),
+  CONSTRAINT fk_follow_user FOREIGN KEY (user_id) REFERENCES t_user(id)
 );
 
 CREATE TABLE t_review (
@@ -226,7 +231,10 @@ CREATE TABLE t_review (
   doctor_id BIGINT,
   rating INT,
   content VARCHAR(255),
-  create_time TIMESTAMP
+  create_time TIMESTAMP,
+  UNIQUE KEY uk_review_order (user_id, order_type, order_id),
+  CONSTRAINT fk_review_user FOREIGN KEY (user_id) REFERENCES t_user(id),
+  CONSTRAINT fk_review_doctor FOREIGN KEY (doctor_id) REFERENCES t_doctor(id)
 );
 
 CREATE TABLE t_feedback (
@@ -235,11 +243,12 @@ CREATE TABLE t_feedback (
   feedback_type INT,
   content VARCHAR(255),
   images VARCHAR(500),
-  status INT,
+  status INT DEFAULT 1,
   reply_content VARCHAR(255),
   reply_time TIMESTAMP,
   create_time TIMESTAMP,
-  update_time TIMESTAMP
+  update_time TIMESTAMP,
+  CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES t_user(id)
 );
 
 CREATE TABLE t_message (
@@ -248,7 +257,8 @@ CREATE TABLE t_message (
   title VARCHAR(128),
   content VARCHAR(255),
   is_read INT,
-  create_time TIMESTAMP
+  create_time TIMESTAMP,
+  CONSTRAINT fk_message_user FOREIGN KEY (user_id) REFERENCES t_user(id)
 );
 
 CREATE TABLE t_config (

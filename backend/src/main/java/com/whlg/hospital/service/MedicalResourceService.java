@@ -15,7 +15,7 @@ public interface MedicalResourceService {
 
     List<Map<String, Object>> getHospitalDepartments(Long hospitalId);
 
-    PageResult<Map<String, Object>> getHospitalDoctors(Long hospitalId, Integer page, Integer pageSize);
+    PageResult<Map<String, Object>> getHospitalDoctors(Long hospitalId, Integer page, Integer pageSize, Long departmentId);
 
     List<Map<String, Object>> getDepartmentTree();
 

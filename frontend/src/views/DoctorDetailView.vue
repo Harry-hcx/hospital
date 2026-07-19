@@ -7,13 +7,13 @@
       </div>
 
       <div class="detail-header" v-if="doctor.id">
-        <img :src="doctor.avatar || defaultImg" :alt="doctor.name" class="header-img" />
+        <img :src="resolveImageUrl(doctor.avatar, 'doctor-male-doc.jpg') || defaultImg" :alt="doctor.name" class="header-img" />
         <div class="header-info">
           <h2>{{ doctor.name }} <span class="title-tag">{{ doctor.title }}</span></h2>
           <p class="dept">{{ doctor.hospitalName }} · {{ doctor.departmentName }}</p>
-          <p class="desc">{{ doctor.description || '暂无简介' }}</p>
+          <p class="desc">{{ doctor.intro || '暂无简介' }}</p>
           <div class="actions">
-            <RateStar :modelValue="doctor.avgRating || 4.5" readonly :size="'16px'" showText />
+            <RateStar :modelValue="doctor.rating || 0" readonly :size="'16px'" showText />
             <button class="btn-follow" @click="toggleFollow">{{ isFollowed ? '已关注' : '+ 关注' }}</button>
             <router-link :to="`/reservation?doctorId=${doctor.id}`" class="btn-primary">预约挂号</router-link>
             <router-link :to="`/consult?doctorId=${doctor.id}`" class="btn-consult">在线咨询</router-link>
@@ -27,9 +27,9 @@
         <div class="schedule-grid">
           <div class="schedule-card" v-for="s in schedules" :key="s.id">
             <div class="s-date">{{ s.scheduleDate }}</div>
-            <div class="s-period">{{ s.period === 1 ? '上午' : s.period === 2 ? '下午' : '晚上' }}</div>
-            <div class="s-fee">¥{{ s.fee }}</div>
-            <div class="s-num">剩余 {{ s.remainNum || 0 }} 号</div>
+            <div class="s-period">{{ s.timeSlot }}</div>
+            <div class="s-fee">¥{{ s.registrationPrice }}</div>
+            <div class="s-num">剩余 {{ s.remainCount || 0 }} 号</div>
             <router-link :to="`/reservation?doctorId=${doctor.id}&scheduleId=${s.id}`" class="btn-book">预约</router-link>
           </div>
         </div>
@@ -65,7 +65,8 @@ import AppFooter from '@/components/AppFooter.vue'
 import RateStar from '@/components/RateStar.vue'
 import Pagination from '@/components/Pagination.vue'
 import { getDoctorDetail, getDoctorSchedules, getDoctorReviews } from '@/api/doctor'
-import { createFollow, deleteFollow } from '@/api/user'
+import { createFollow, deleteFollow, getMyFollows } from '@/api/user'
+import { resolveImageUrl } from '@/utils/asset'
 
 const route = useRoute()
 const doctor = ref({})
@@ -75,7 +76,7 @@ const reviewTotal = ref(0)
 const reviewPage = ref(1)
 const reviewPageSize = ref(10)
 const isFollowed = ref(false)
-const defaultImg = 'https://picsum.photos/200/200?random=99'
+const defaultImg = resolveImageUrl('doctor-male-doc.jpg', 'doctor-male-doc.jpg')
 
 onMounted(async () => {
   const id = route.params.id
@@ -84,9 +85,16 @@ onMounted(async () => {
     doctor.value = res.data.data || res.data
   } catch (e) { console.error('加载医生详情失败', e) }
   try {
-    const res = await getDoctorSchedules(id, { startDate: '', days: 7 })
+    const res = await getDoctorSchedules(id, { days: 7 })
     schedules.value = (res.data.data || res.data) || []
   } catch (e) { /* ignore */ }
+  if (localStorage.getItem('token')) {
+    try {
+      const res = await getMyFollows({ type: 2, page: 1, pageSize: 1000 })
+      const d = res.data.data || res.data
+      isFollowed.value = (d.records || []).some(item => Number(item.followId) === Number(id))
+    } catch (e) { /* ignore */ }
+  }
   fetchReviews()
 })
 

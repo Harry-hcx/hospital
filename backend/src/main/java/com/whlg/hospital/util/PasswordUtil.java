@@ -1,19 +1,35 @@
 package com.whlg.hospital.util;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
+import java.util.Base64;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 public class PasswordUtil {
+
+    private static final String PREFIX = "pbkdf2";
+    private static final int ITERATIONS = 120000;
+    private static final int KEY_LENGTH = 256;
+    private static final int SALT_LENGTH = 16;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private PasswordUtil() {
     }
 
-    public static String md5(String value) {
+    public static String encode(String value) {
+        if (value == null) {
+            throw new IllegalArgumentException("密码不能为空");
+        }
         try {
-            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-            byte[] bytes = messageDigest.digest(value.getBytes(StandardCharsets.UTF_8));
-            return toHex(bytes);
-        } catch (Exception ex) {
+            byte[] salt = new byte[SALT_LENGTH];
+            RANDOM.nextBytes(salt);
+            byte[] hash = derive(value, salt, ITERATIONS);
+            return PREFIX + "$" + ITERATIONS + "$"
+                    + Base64.getEncoder().encodeToString(salt) + "$"
+                    + Base64.getEncoder().encodeToString(hash);
+        } catch (GeneralSecurityException ex) {
             throw new IllegalStateException("密码加密失败", ex);
         }
     }
@@ -22,16 +38,27 @@ public class PasswordUtil {
         if (rawPassword == null || encodedPassword == null) {
             return false;
         }
-        return encodedPassword.equals(rawPassword) || encodedPassword.equals(md5(rawPassword));
+        String[] parts = encodedPassword.split("\\$", -1);
+        if (parts.length != 4 || !PREFIX.equals(parts[0])) {
+            return false;
+        }
+        try {
+            int iterations = Integer.parseInt(parts[1]);
+            byte[] salt = Base64.getDecoder().decode(parts[2]);
+            byte[] expected = Base64.getDecoder().decode(parts[3]);
+            byte[] actual = derive(rawPassword, salt, iterations);
+            return java.security.MessageDigest.isEqual(actual, expected);
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
-    private static String toHex(byte[] bytes) {
-        final char[] hexDigits = "0123456789ABCDEF".toCharArray();
-        StringBuilder builder = new StringBuilder(bytes.length * 2);
-        for (byte value : bytes) {
-            builder.append(hexDigits[(value >> 4) & 0x0F]);
-            builder.append(hexDigits[value & 0x0F]);
+    private static byte[] derive(String value, byte[] salt, int iterations) throws GeneralSecurityException {
+        PBEKeySpec spec = new PBEKeySpec(value.toCharArray(), salt, iterations, KEY_LENGTH);
+        try {
+            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
+        } finally {
+            spec.clearPassword();
         }
-        return builder.toString();
     }
 }

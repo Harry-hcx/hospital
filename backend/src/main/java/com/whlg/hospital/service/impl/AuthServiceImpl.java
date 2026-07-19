@@ -26,8 +26,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.security.SecureRandom;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -42,6 +44,7 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     private static final long CAPTCHA_COOLDOWN_SECONDS = 60L;
     private static final String CAPTCHA_CODE_KEY_PREFIX = "auth:captcha:code:";
     private static final String CAPTCHA_COOLDOWN_KEY_PREFIX = "auth:captcha:cooldown:";
+    private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
 
     private final UserMapper userMapper;
     private final UserTokenMapper userTokenMapper;
@@ -131,8 +134,12 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
         User user = new User();
         user.setUsername(phone);
         user.setPhone(phone);
-        user.setPassword(PasswordUtil.md5(request.getPassword()));
-        user.setRealName("用户" + phone.substring(phone.length() - 4));
+        user.setPassword(PasswordUtil.encode(request.getPassword()));
+        user.setRealName(request.getRealName() == null || request.getRealName().trim().isEmpty()
+                ? "用户" + phone.substring(phone.length() - 4)
+                : request.getRealName().trim());
+        user.setEmail(request.getEmail());
+        user.setGender(request.getGender());
         user.setAvatar("/avatar/default.png");
         user.setStatus(1);
         user.setCreateTime(LocalDateTime.now());
@@ -149,10 +156,12 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     public Map<String, Object> login(LoginRequest request) {
         check(request != null, "请求体不能为空");
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, request.getPhone()));
-        check(user != null && PasswordUtil.matches(request.getPassword(), user.getPassword()), "手机号或密码错误");
-        upgradePasswordIfLegacy(user, request.getPassword());
+        check(user != null && Integer.valueOf(1).equals(user.getStatus())
+                && PasswordUtil.matches(request.getPassword(), user.getPassword()), "手机号或密码错误");
 
-        String token = "token-" + user.getId() + "-" + System.nanoTime();
+        byte[] tokenBytes = new byte[32];
+        TOKEN_RANDOM.nextBytes(tokenBytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
         UserToken userToken = new UserToken();
         userToken.setUserId(user.getId());
         userToken.setToken(token);
@@ -183,7 +192,7 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
         check(PasswordUtil.matches(request.getOldPassword(), user.getPassword()), "旧密码错误");
         check(request.getNewPassword() != null && !request.getNewPassword().trim().isEmpty(), "新密码不能为空");
         check(request.getNewPassword().equals(request.getConfirmPassword()), "两次密码不一致");
-        user.setPassword(PasswordUtil.md5(request.getNewPassword()));
+        user.setPassword(PasswordUtil.encode(request.getNewPassword()));
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
         disableUserTokens(userId);
@@ -250,23 +259,13 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
                 .set(UserToken::getUpdateTime, LocalDateTime.now()));
     }
 
-    private void upgradePasswordIfLegacy(User user, String rawPassword) {
-        if (user == null || rawPassword == null || user.getPassword() == null) {
-            return;
-        }
-        if (!user.getPassword().equals(rawPassword)) {
-            return;
-        }
-        user.setPassword(PasswordUtil.md5(rawPassword));
-        user.setUpdateTime(LocalDateTime.now());
-        userMapper.updateById(user);
-    }
-
     private Map<String, Object> buildUserInfo(User user) {
         Map<String, Object> userInfo = new LinkedHashMap<String, Object>();
         userInfo.put("id", user.getId());
         userInfo.put("name", user.getRealName());
         userInfo.put("phone", user.getPhone());
+        userInfo.put("email", user.getEmail());
+        userInfo.put("gender", user.getGender());
         userInfo.put("avatar", user.getAvatar());
         return userInfo;
     }

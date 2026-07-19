@@ -68,7 +68,8 @@ CREATE TABLE t_family_member (
   relation VARCHAR(32),
   is_default INT DEFAULT 0,
   create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_family_member_user FOREIGN KEY (user_id) REFERENCES t_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE t_hospital (
@@ -148,6 +149,7 @@ CREATE TABLE t_appointment (
   user_id BIGINT NOT NULL,
   doctor_id BIGINT NOT NULL,
   hospital_id BIGINT NOT NULL,
+  schedule_id BIGINT,
   patient_name VARCHAR(64),
   patient_phone VARCHAR(32),
   patient_id_card VARCHAR(32),
@@ -233,7 +235,9 @@ CREATE TABLE t_follow (
   user_id BIGINT NOT NULL,
   follow_type INT,
   follow_id BIGINT,
-  create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_follow (user_id, follow_type, follow_id),
+  CONSTRAINT fk_follow_user FOREIGN KEY (user_id) REFERENCES t_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE t_review (
@@ -244,7 +248,10 @@ CREATE TABLE t_review (
   doctor_id BIGINT,
   rating INT,
   content VARCHAR(255),
-  create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_review_order (user_id, order_type, order_id),
+  CONSTRAINT fk_review_user FOREIGN KEY (user_id) REFERENCES t_user(id),
+  CONSTRAINT fk_review_doctor FOREIGN KEY (doctor_id) REFERENCES t_doctor(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE t_feedback (
@@ -253,11 +260,12 @@ CREATE TABLE t_feedback (
   feedback_type INT,
   content VARCHAR(255),
   images VARCHAR(500),
-  status INT DEFAULT 0,
+  status INT DEFAULT 1,
   reply_content VARCHAR(255),
   reply_time DATETIME,
   create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES t_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE t_message (
@@ -266,7 +274,8 @@ CREATE TABLE t_message (
   title VARCHAR(128),
   content VARCHAR(255),
   is_read INT DEFAULT 0,
-  create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_message_user FOREIGN KEY (user_id) REFERENCES t_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE t_config (
@@ -281,9 +290,9 @@ CREATE TABLE t_config (
 -- 二、种子数据
 -- ===================================================================
 
--- 用户（密码明文 "123456"）
+-- 用户（密码为 PBKDF2 哈希，对应测试密码 123456）
 INSERT INTO t_user (id, username, password, phone, email, real_name, gender, birthday, avatar, status, create_time, update_time) VALUES
-(1, '13800138000', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh', '13800138000', 'harry@example.com', '张三', 1, '1990-01-01', '/avatar/user-1.png', 1, NOW(), NOW());
+(1, '13800138000', 'pbkdf2$120000$aG9zcGl0YWwtdGVzdC1zYWx0LTIwMjY=$y3e+Ejte/SRbFvvJJSs4de1Lbef1pNZtOQN/+0b33ag=', '13800138000', 'harry@example.com', '张三', 1, '1990-01-01', '/avatar/user-1.png', 1, NOW(), NOW());
 
 -- 科室
 INSERT INTO t_department (id, name, description, parent_id, sort_order, status, create_time) VALUES
@@ -300,9 +309,9 @@ INSERT INTO t_department (id, name, description, parent_id, sort_order, status, 
 
 -- 医院
 INSERT INTO t_hospital (id, name, level, address, phone, intro, image, province, city, district, department_count, doctor_count, follow_count, status, create_time, update_time) VALUES
-(1, '北京第一人民医院', '三甲', '北京市朝阳区健康路1号', '010-10000001', '北京第一人民医院是一所集医疗、教学、科研为一体的综合性三级甲等医院，拥有先进的医疗设备和专业的医疗团队。', '/img/hospital-1.png', '北京', '北京', '朝阳区', 10, 50, 120, 1, NOW(), NOW()),
-(2, '上海瑞康医院', '三甲', '上海市浦东新区仁心路8号', '021-20000002', '上海瑞康医院专注于慢病管理与康复治疗，在心血管疾病、糖尿病等领域具有丰富的临床经验。', '/img/hospital-2.png', '上海', '上海', '浦东新区', 8, 30, 80, 1, NOW(), NOW()),
-(3, '广州华康医院', '三甲', '广州市天河区中山大道100号', '020-30000003', '广州华康医院是华南地区知名的综合性医院，拥有多个国家级重点专科。', '/img/hospital-3.png', '广东', '广州', '天河区', 12, 60, 200, 1, NOW(), NOW());
+(1, '北京第一人民医院', '三甲', '北京市朝阳区健康路1号', '010-10000001', '北京第一人民医院是一所集医疗、教学、科研为一体的综合性三级甲等医院，拥有先进的医疗设备和专业的医疗团队。', '/img/hospital-1.png', '北京', '北京', '朝阳区', 8, 3, 120, 1, NOW(), NOW()),
+(2, '上海瑞康医院', '三甲', '上海市浦东新区仁心路8号', '021-20000002', '上海瑞康医院专注于慢病管理与康复治疗，在心血管疾病、糖尿病等领域具有丰富的临床经验。', '/img/hospital-2.png', '上海', '上海', '浦东新区', 4, 1, 80, 1, NOW(), NOW()),
+(3, '广州华康医院', '三甲', '广州市天河区中山大道100号', '020-30000003', '广州华康医院是华南地区知名的综合性医院，拥有多个国家级重点专科。', '/img/hospital-3.png', '广东', '广州', '天河区', 7, 1, 200, 1, NOW(), NOW());
 
 -- 医院-科室关联
 INSERT INTO t_hospital_department (id, hospital_id, department_id, create_time) VALUES
@@ -314,8 +323,8 @@ INSERT INTO t_hospital_department (id, hospital_id, department_id, create_time) 
 
 -- 医生
 INSERT INTO t_doctor (id, name, gender, title, department_id, hospital_id, avatar, phone, intro, expertise, consult_count, rating, follow_count, online_status, price, registration_price, status, create_time, update_time) VALUES
-(1, '李主任', 1, '主任医师', 2, 1, '/img/doctor-1.png', '13811110001', '从事心血管内科临床工作30余年，擅长冠心病、高血压、心力衰竭等疾病的诊疗，在介入治疗方面有丰富经验。', '冠心病,高血压,心衰', 2680, 4.9, 300, 1, 39.90, 18.00, 1, NOW(), NOW()),
-(2, '王医生', 2, '副主任医师', 4, 1, '/img/doctor-2.png', '13811110002', '专注骨科临床工作15年，擅长关节损伤、骨折康复及运动医学，在膝关节置换方面有独到见解。', '膝关节,髋关节,骨折康复', 1520, 4.7, 180, 1, 29.90, 20.00, 1, NOW(), NOW()),
+(1, '李主任', 1, '主任医师', 2, 1, '/img/doctor-1.png', '13811110001', '从事心血管内科临床工作30余年，擅长冠心病、高血压、心力衰竭等疾病的诊疗，在介入治疗方面有丰富经验。', '冠心病,高血压,心衰', 2680, 5.0, 300, 1, 39.90, 18.00, 1, NOW(), NOW()),
+(2, '王医生', 2, '副主任医师', 4, 1, '/img/doctor-2.png', '13811110002', '专注骨科临床工作15年，擅长关节损伤、骨折康复及运动医学，在膝关节置换方面有独到见解。', '膝关节,髋关节,骨折康复', 1520, 4.0, 180, 1, 29.90, 20.00, 1, NOW(), NOW()),
 (3, '周医生', 1, '主治医师', 2, 2, '/img/doctor-3.png', '13811110003', '擅长高血压、糖尿病等慢性病的长期管理与随访，注重患者健康教育。', '高血压,糖尿病', 980, 4.6, 120, 1, 25.00, 15.00, 1, NOW(), NOW()),
 (4, '赵医生', 2, '主任医师', 5, 1, '/img/doctor-4.png', '13811110004', '儿科主任医师，从事儿科临床工作25年，擅长儿童呼吸系统疾病及新生儿疾病诊疗。', '儿童哮喘,小儿肺炎,新生儿护理', 2100, 4.8, 250, 1, 35.00, 20.00, 1, NOW(), NOW()),
 (5, '孙医生', 1, '副主任医师', 7, 3, '/img/doctor-5.png', '13811110005', '神经内科专家，擅长脑血管疾病、帕金森病及癫痫的诊疗。', '脑卒中,帕金森,癫痫', 1800, 4.7, 200, 1, 32.00, 18.00, 1, NOW(), NOW());
@@ -330,7 +339,10 @@ INSERT INTO t_schedule (id, doctor_id, hospital_id, department_id, schedule_date
 (6, 3, 2, 2, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '09:00-10:00', 10, 6, 1, NOW()),
 (7, 3, 2, 2, DATE_ADD(CURDATE(), INTERVAL 2 DAY), '09:00-10:00', 10, 8, 1, NOW()),
 (8, 4, 1, 5, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '08:00-09:00', 15, 10, 1, NOW()),
-(9, 5, 3, 7, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '10:00-11:00', 12, 7, 1, NOW());
+(9, 5, 3, 7, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '10:00-11:00', 12, 7, 1, NOW()),
+(10, 1, 1, 2, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '08:00-09:00', 20, 19, 0, NOW()),
+(11, 2, 1, 4, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '14:00-15:00', 15, 14, 0, NOW()),
+(12, 3, 2, 2, DATE_SUB(CURDATE(), INTERVAL 7 DAY), '09:00-10:00', 10, 9, 0, NOW());
 
 -- 文章
 INSERT INTO t_article (id, title, summary, content, department_id, author, image, views, status, publish_time, create_time, update_time) VALUES
@@ -353,31 +365,47 @@ INSERT INTO t_family_member (id, user_id, name, gender, birthday, phone, id_card
 (3, 1, '张小宝', 1, '2020-05-15', '13800138002', NULL, '子女', 0, NOW(), NOW());
 
 -- 挂号订单
-INSERT INTO t_appointment (id, order_no, user_id, doctor_id, hospital_id, patient_name, patient_phone, patient_id_card, patient_gender, patient_age, appointment_date, appointment_time, disease_desc, amount, status, pay_time, create_time, update_time) VALUES
-(1, 'AP202607170001', 1, 1, 1, '张三', '13800138000', '110101199001010011', 1, 36, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '08:00-09:00', '血压偏高，头晕', 18.00, 2, NOW(), NOW(), NOW());
+INSERT INTO t_appointment (id, order_no, user_id, doctor_id, hospital_id, schedule_id, patient_name, patient_phone, patient_id_card, patient_gender, patient_age, appointment_date, appointment_time, disease_desc, amount, status, pay_time, create_time, update_time) VALUES
+(1, 'AP-DEMO-PAID', 1, 1, 1, 1, '张三', '13800138000', '110101199001010011', 1, 36, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '08:00-09:00', '血压偏高，头晕', 18.00, 2, NOW(), NOW(), NOW()),
+(2, 'AP-DEMO-COMPLETED', 1, 1, 1, 10, '张三', '13800138000', '110101199001010011', 1, 36, DATE_SUB(CURDATE(), INTERVAL 3 DAY), '08:00-09:00', '高血压复诊', 18.00, 3, DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY), NOW()),
+(3, 'AP-DEMO-PENDING', 1, 1, 1, 2, '李四', '13800138001', '110101199202020022', 2, 34, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '09:00-10:00', '偶发心悸', 18.00, 1, NULL, NOW(), NOW()),
+(4, 'AP-DEMO-CANCELLED', 1, 2, 1, 11, '张三', '13800138000', '110101199001010011', 1, 36, DATE_SUB(CURDATE(), INTERVAL 5 DAY), '14:00-15:00', '膝关节疼痛', 20.00, 4, NULL, DATE_SUB(NOW(), INTERVAL 6 DAY), NOW()),
+(5, 'AP-DEMO-REVIEWABLE', 1, 3, 2, 12, '李四', '13800138001', '110101199202020022', 2, 34, DATE_SUB(CURDATE(), INTERVAL 7 DAY), '09:00-10:00', '慢病随访复诊', 15.00, 3, DATE_SUB(NOW(), INTERVAL 8 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY), NOW());
 
 -- 咨询订单
 INSERT INTO t_consult (id, order_no, user_id, doctor_id, patient_name, patient_phone, disease_desc, appointment_time, duration, amount, status, pay_time, create_time, update_time) VALUES
-(1, 'CO202607170001', 1, 1, '张三', '13800138000', '复诊咨询，血压控制情况', DATE_ADD(NOW(), INTERVAL 1 DAY), 15, 39.90, 2, NOW(), NOW(), NOW());
+(1, 'CO-DEMO-PAID', 1, 1, '张三', '13800138000', '复诊咨询，血压控制情况', DATE_ADD(NOW(), INTERVAL 1 DAY), 15, 39.90, 2, NOW(), NOW(), NOW()),
+(2, 'CO-DEMO-IN-PROGRESS', 1, 3, '李四', '13800138001', '血糖控制与用药咨询', NOW(), 15, 25.00, 3, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY), NOW()),
+(3, 'CO-DEMO-COMPLETED', 1, 2, '张三', '13800138000', '膝关节康复动作咨询', DATE_SUB(NOW(), INTERVAL 3 DAY), 15, 29.90, 4, DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY), NOW()),
+(4, 'CO-DEMO-CANCELLED', 1, 4, '张小宝', '13800138002', '儿童咳嗽咨询', DATE_SUB(NOW(), INTERVAL 1 DAY), 15, 35.00, 5, NULL, DATE_SUB(NOW(), INTERVAL 2 DAY), NOW()),
+(5, 'CO-DEMO-PENDING', 1, 5, '张三', '13800138000', '头晕与睡眠问题', DATE_ADD(NOW(), INTERVAL 1 DAY), 15, 32.00, 1, NULL, NOW(), NOW());
 
 -- 支付流水
 INSERT INTO t_payment_flow (id, business_order_no, business_type, pay_method, third_party_trade_no, actual_amount, pay_status, pay_success_time, original_callback, create_time, update_time) VALUES
-(1, 'AP202607170001', 1, 2, 'WX-AP-0001', 18.00, 1, NOW(), 'callback-ok', NOW(), NOW()),
-(2, 'CO202607170001', 2, 1, 'ALI-CO-0001', 39.90, 1, NOW(), 'callback-ok', NOW(), NOW());
+(1, 'AP-DEMO-PAID', 1, 2, 'WX-AP-0001', 18.00, 1, NOW(), 'seed-paid', NOW(), NOW()),
+(2, 'AP-DEMO-COMPLETED', 1, 1, 'ALI-AP-0002', 18.00, 1, DATE_SUB(NOW(), INTERVAL 4 DAY), 'seed-completed', NOW(), NOW()),
+(3, 'CO-DEMO-PAID', 2, 1, 'ALI-CO-0001', 39.90, 1, NOW(), 'seed-paid', NOW(), NOW()),
+(4, 'CO-DEMO-IN-PROGRESS', 2, 2, 'WX-CO-0002', 25.00, 1, DATE_SUB(NOW(), INTERVAL 1 DAY), 'seed-in-progress', NOW(), NOW()),
+(5, 'CO-DEMO-COMPLETED', 2, 1, 'ALI-CO-0003', 29.90, 1, DATE_SUB(NOW(), INTERVAL 4 DAY), 'seed-completed', NOW(), NOW()),
+(6, 'AP-DEMO-REVIEWABLE', 1, 2, 'WX-AP-0005', 15.00, 1, DATE_SUB(NOW(), INTERVAL 8 DAY), 'seed-reviewable', NOW(), NOW());
 
 -- 评价
 INSERT INTO t_review (id, order_type, order_id, user_id, doctor_id, rating, content, create_time) VALUES
-(1, 1, 1, 1, 1, 5, '李主任非常专业，讲解很清楚，态度也很好！', NOW());
+(1, 1, 2, 1, 1, 5, '李主任非常专业，讲解很清楚，态度也很好！', DATE_SUB(NOW(), INTERVAL 2 DAY)),
+(2, 2, 3, 1, 2, 4, '康复建议很具体，在家就能照着练习。', DATE_SUB(NOW(), INTERVAL 1 DAY));
 
 -- 反馈
 INSERT INTO t_feedback (id, user_id, feedback_type, content, images, status, reply_content, reply_time, create_time, update_time) VALUES
-(1, 1, 1, '首页轮播图加载较慢，希望能优化', '/img/f1.png,/img/f2.png', 1, '感谢您的反馈，我们会尽快优化。', NOW(), NOW(), NOW());
+(1, 1, 1, '首页轮播图加载较慢，希望能优化', '/img/f1.png,/img/f2.png', 2, '感谢您的反馈，图片资源已经优化。', NOW(), DATE_SUB(NOW(), INTERVAL 3 DAY), NOW()),
+(2, 1, 2, '希望医院列表增加地区筛选', NULL, 1, NULL, NULL, NOW(), NOW());
 
 -- 消息
 INSERT INTO t_message (id, user_id, title, content, is_read, create_time) VALUES
 (1, 1, '挂号成功', '您的挂号订单已支付成功，请按时就诊。', 0, NOW()),
 (2, 1, '咨询提醒', '您的电话咨询将在明天开始，请保持电话畅通。', 1, NOW()),
-(3, 1, '系统通知', '欢迎使用医院在线预约挂号系统！', 0, NOW());
+(3, 1, '系统通知', '欢迎使用医院在线预约挂号系统！', 0, NOW()),
+(4, 1, '问诊进行中', '周医生已开始处理您的在线问诊。', 0, NOW()),
+(5, 1, '评价提醒', '您有已完成的就诊服务可以评价。', 1, DATE_SUB(NOW(), INTERVAL 1 DAY));
 
 -- 关注
 INSERT INTO t_follow (id, user_id, follow_type, follow_id, create_time) VALUES

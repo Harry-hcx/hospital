@@ -9,7 +9,7 @@ export function getAppointmentDetail(orderNo) {
 }
 
 export function cancelAppointment(orderNo) {
-  return request.post(`/appointments/${orderNo}/cancel`)
+  return request.post(`/appointments/${orderNo}/cancel`, {})
 }
 
 export function payAppointment(orderNo, data) {

@@ -9,11 +9,11 @@
         <h2>订单支付</h2>
         <div class="order-info" v-if="order.orderNo">
           <div class="info-row"><span>订单编号</span><strong>{{ order.orderNo }}</strong></div>
-          <div class="info-row"><span>医生</span><strong>{{ order.doctorName }}</strong></div>
-          <div class="info-row"><span>医院</span><strong>{{ order.hospitalName }}</strong></div>
-          <div class="info-row"><span>就诊时间</span><strong>{{ order.scheduleDate }} {{ order.periodText }}</strong></div>
-          <div class="info-row"><span>就诊人</span><strong>{{ order.familyMemberName }}</strong></div>
-          <div class="info-row"><span>挂号费</span><strong class="fee">¥{{ order.amount }}</strong></div>
+          <div class="info-row"><span>医生</span><strong>{{ order.doctor }}</strong></div>
+          <div class="info-row"><span>医院</span><strong>{{ order.hospital }}</strong></div>
+          <div class="info-row"><span>就诊时间</span><strong>{{ order.date }} {{ order.timeSlot }}</strong></div>
+          <div class="info-row"><span>就诊人</span><strong>{{ order.patientName }}</strong></div>
+          <div class="info-row"><span>挂号费</span><strong class="fee">¥{{ order.fee }}</strong></div>
         </div>
         <div class="pay-methods">
           <label>支付方式</label>
@@ -23,7 +23,7 @@
           </div>
         </div>
         <button class="btn-primary btn-submit" @click="handlePay" :disabled="paying">
-          {{ paying ? '支付中...' : `确认支付 ¥${order.amount || 0}` }}
+          {{ paying ? '支付中...' : `确认支付 ¥${order.fee || 0}` }}
         </button>
       </div>
     </div>
@@ -43,18 +43,20 @@ const router = useRouter()
 const order = ref({})
 const payMethod = ref('wechat')
 const paying = ref(false)
+const loadError = ref('')
 
 onMounted(async () => {
   try {
     const res = await getAppointmentDetail(route.params.orderNo)
-    order.value = res.data.data || res.data
+    order.value = res?.data || {}
   } catch (e) { console.error('加载订单详情失败', e) }
 })
 
 async function handlePay() {
   paying.value = true
   try {
-    await payAppointment(route.params.orderNo)
+    if (!order.value.orderNo) { alert('订单信息未加载完成'); return }
+    await payAppointment(route.params.orderNo, { payType: payMethod.value === 'wechat' ? 1 : 2 })
     router.push(`/reservation/success/${route.params.orderNo}`)
   } catch (e) {
     console.error('支付失败', e)

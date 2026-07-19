@@ -17,7 +17,7 @@
           <div class="form-group">
             <label>性别</label>
             <select v-model="form.gender">
-              <option value="0">未知</option>
+              <option disabled value="0">请选择性别</option>
               <option value="1">男</option>
               <option value="2">女</option>
             </select>
@@ -52,6 +52,9 @@ import { resolveImageUrl } from '@/utils/asset'
 
 const defaultImg = resolveImageUrl('/avatar/user-1.png', 'icons-pa.jpg')
 const form = ref({ name: '', gender: '0', phone: '', email: '', birthday: '', avatar: '' })
+const loading = ref(false)
+const saving = ref(false)
+const loadError = ref('')
 
 onMounted(async () => {
   try {
@@ -62,13 +65,14 @@ onMounted(async () => {
 })
 
 async function handleSave() {
+  saving.value = true
   try {
-    await updateProfile(form.value)
+    await updateProfile({ ...form.value, gender: form.value.gender === '' ? null : Number(form.value.gender) })
     alert('保存成功')
   } catch (e) {
     console.error('保存失败', e)
     alert('保存失败')
-  }
+  } finally { saving.value = false }
 }
 </script>
 

@@ -1,51 +1,43 @@
 @echo off
-chcp 65001 >nul
-title 医院预约挂号系统 - 一键启动
+setlocal
 
-echo.
-echo  ╔══════════════════════════════════════╗
-echo  ║   医院在线预约挂号系统              ║
-echo  ║   后端: Spring Boot 3.3  :8080/api   ║
-echo  ║   前端: Vue 3 + Vite    :3000       ║
-echo  ╚══════════════════════════════════════╝
-echo.
+set "PROJECT_ROOT=%~dp0"
+set "BACKEND_DIR=%PROJECT_ROOT%backend"
+set "FRONTEND_DIR=%PROJECT_ROOT%frontend"
 
-REM 检查 MySQL
-echo [1/3] 检查 MySQL...
-sc query MySQL | find "RUNNING" >nul
-if %errorlevel% neq 0 (
-    echo   MySQL 未运行，正在启动...
-    net start MySQL
-    if %errorlevel% neq 0 (
-        echo   [错误] 无法启动 MySQL，请手动启动
-        pause
-        exit /b 1
-    )
+if not exist "%BACKEND_DIR%\pom.xml" (
+    echo [ERROR] Backend project not found: "%BACKEND_DIR%"
+    pause
+    exit /b 1
 )
-echo   MySQL 运行正常
-echo.
 
-REM 启动后端（新窗口）
-echo [2/3] 启动后端 (端口 8080)...
-start "hospital-backend" cmd /c "cd /d C:\Users\AA\Desktop\dev\prj\backend && mvn spring-boot:run"
-echo   等待后端启动...
-timeout /t 10 /nobreak >nul
+if not exist "%FRONTEND_DIR%\package.json" (
+    echo [ERROR] Frontend project not found: "%FRONTEND_DIR%"
+    pause
+    exit /b 1
+)
 
-REM 启动前端（新窗口）
-echo [3/3] 启动前端 (端口 3000)...
-start "hospital-frontend" cmd /c "cd /d C:\Users\AA\Desktop\dev\prj\frontend && npx vite"
-echo   等待前端启动...
-timeout /t 5 /nobreak >nul
+where mvn >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Maven was not found in PATH.
+    echo Install Maven or add it to PATH, then run this script again.
+    pause
+    exit /b 1
+)
 
-REM 打开浏览器
-echo.
-echo ═══════════════════════════════════════
-echo   服务已启动，正在打开浏览器...
-echo ═══════════════════════════════════════
-start http://localhost:3000
+where npm.cmd >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] npm was not found in PATH.
+    echo Install Node.js or add it to PATH, then run this script again.
+    pause
+    exit /b 1
+)
 
-echo.
-echo   后端接口文档: http://localhost:8080/api/doc.html
-echo   关闭本窗口不会影响服务运行
-echo.
-pause
+start "Hospital Backend - 8080" cmd /k "cd /d "%BACKEND_DIR%" && mvn spring-boot:run"
+start "Hospital Frontend - 3000" cmd /k "cd /d "%FRONTEND_DIR%" && npm.cmd run dev"
+
+echo Backend:  http://localhost:8080
+echo Frontend: http://localhost:3000
+echo Two terminal windows have been opened. Close those windows to stop the services.
+
+endlocal

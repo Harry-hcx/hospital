@@ -35,6 +35,12 @@ public class ConsultController {
         return R.ok(orderService.getConsult(orderNo));
     }
 
+    @PostMapping("/{orderNo}/cancel")
+    public R<Object> cancel(@PathVariable("orderNo") String orderNo) {
+        orderService.cancelConsult(orderNo);
+        return R.ok();
+    }
+
     @PostMapping("/{orderNo}/pay")
     public R<Map<String, Object>> pay(@PathVariable("orderNo") String orderNo, @RequestBody PayRequest request) {
         return R.ok(orderService.payConsult(orderNo, request));

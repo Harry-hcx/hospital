@@ -62,10 +62,12 @@ abstract class ServiceSupport {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("id", hospital.getId());
         item.put("name", hospital.getName());
-        item.put("level", hospital.getLevel());
+        item.put("level", canonicalHospitalLevel(hospital.getLevel()));
         item.put("address", hospital.getAddress());
         item.put("phone", hospital.getPhone());
         item.put("image", hospital.getImage());
+        item.put("avatar", hospital.getImage());
+        item.put("description", hospital.getIntro());
         item.put("province", hospital.getProvince());
         item.put("city", hospital.getCity());
         item.put("departmentCount", hospital.getDepartmentCount());
@@ -74,21 +76,32 @@ abstract class ServiceSupport {
         return item;
     }
 
+    private String canonicalHospitalLevel(String level) {
+        if ("三甲".equals(level) || "三级甲".equals(level)) return "三级甲等";
+        if ("三乙".equals(level) || "三级乙".equals(level)) return "三级乙等";
+        if ("二甲".equals(level) || "二级甲".equals(level)) return "二级甲等";
+        if ("二乙".equals(level) || "二级乙".equals(level)) return "二级乙等";
+        return level;
+    }
+
     protected Map<String, Object> doctorSummary(Doctor doctor, Hospital hospital, Department department) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("id", doctor.getId());
         item.put("name", doctor.getName());
         item.put("title", doctor.getTitle());
         item.put("avatar", doctor.getAvatar());
+        item.put("description", doctor.getIntro());
         item.put("hospitalId", doctor.getHospitalId());
         item.put("hospitalName", hospital == null ? null : hospital.getName());
         item.put("departmentId", doctor.getDepartmentId());
         item.put("departmentName", department == null ? null : department.getName());
         item.put("expertise", doctor.getExpertise());
         item.put("consultPrice", doctor.getPrice());
+        item.put("consultFee", doctor.getPrice());
         item.put("registrationPrice", doctor.getRegistrationPrice());
         item.put("followCount", doctor.getFollowCount());
         item.put("rating", doctor.getRating());
+        item.put("avgRating", doctor.getRating());
         return item;
     }
 }

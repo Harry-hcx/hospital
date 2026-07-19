@@ -16,6 +16,7 @@ class ResourceApiTest extends BaseApiTest {
         mockMvc.perform(get("/api/home/index"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.banners").isArray())
+                .andExpect(jsonPath("$.data.banners[0].image").value("/img/banner-1.png"))
                 .andExpect(jsonPath("$.data.recommendDoctors[*].id", hasItem(1)));
     }
 
@@ -25,6 +26,26 @@ class ResourceApiTest extends BaseApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records").isArray())
                 .andExpect(jsonPath("$.data.total").value(2));
+    }
+
+    @Test
+    void shouldApplyHospitalFiltersBeforePaging() throws Exception {
+        mockMvc.perform(get("/api/hospitals")
+                        .param("keyword", "北京")
+                        .param("departmentId", "2")
+                        .param("page", "1")
+                        .param("pageSize", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records.length()").value(1));
+    }
+
+    @Test
+    void shouldNormalizeHospitalLevelAliases() throws Exception {
+        mockMvc.perform(get("/api/hospitals").param("level", "三级甲等"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.records[0].level").value("三级甲等"));
     }
 
     @Test
@@ -49,6 +70,17 @@ class ResourceApiTest extends BaseApiTest {
     }
 
     @Test
+    void shouldFilterHospitalDoctorsByPrimaryDepartment() throws Exception {
+        mockMvc.perform(get("/api/hospitals/1/doctors")
+                        .param("departmentId", "1")
+                        .param("page", "1")
+                        .param("pageSize", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].departmentId").value(2));
+    }
+
+    @Test
     void shouldGetDepartmentTree() throws Exception {
         mockMvc.perform(get("/api/departments/tree"))
                 .andExpect(status().isOk())
@@ -63,6 +95,13 @@ class ResourceApiTest extends BaseApiTest {
     }
 
     @Test
+    void shouldIncludeSecondLevelDoctorsWhenFilteringPrimaryDepartment() throws Exception {
+        mockMvc.perform(get("/api/doctors").param("departmentId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2));
+    }
+
+    @Test
     void shouldGetDoctorDetail() throws Exception {
         mockMvc.perform(get("/api/doctors/1"))
                 .andExpect(status().isOk())
@@ -73,7 +112,18 @@ class ResourceApiTest extends BaseApiTest {
     void shouldGetDoctorSchedules() throws Exception {
         mockMvc.perform(get("/api/doctors/1/schedules").param("days", "7"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].timeSlot").isString());
+                .andExpect(jsonPath("$.data[0].timeSlot").isString())
+                .andExpect(jsonPath("$.data[0].isAvailable").value(true))
+                .andExpect(jsonPath("$.data[0].remainCount").value(org.hamcrest.Matchers.greaterThan(0)));
+    }
+
+    @Test
+    void shouldTreatBlankScheduleStartDateAsToday() throws Exception {
+        mockMvc.perform(get("/api/doctors/1/schedules")
+                        .param("startDate", "")
+                        .param("days", "7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test
@@ -108,7 +158,12 @@ class ResourceApiTest extends BaseApiTest {
     void shouldGetArticleDetail() throws Exception {
         mockMvc.perform(get("/api/articles/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.departmentName").value("心血管内科"));
+                .andExpect(jsonPath("$.data.departmentName").value("心血管内科"))
+                .andExpect(jsonPath("$.data.viewCount").value(1201));
+
+        mockMvc.perform(get("/api/articles/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.viewCount").value(1202));
     }
 
     @Test
@@ -116,6 +171,8 @@ class ResourceApiTest extends BaseApiTest {
         mockMvc.perform(get("/api/search/global").param("keyword", "高血压"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.diseaseList").isArray())
-                .andExpect(jsonPath("$.data.articleList").isArray());
+                .andExpect(jsonPath("$.data.articleList").isArray())
+                .andExpect(jsonPath("$.data.counts.disease").isNumber())
+                .andExpect(jsonPath("$.data.diseaseCount").isNumber());
     }
 }

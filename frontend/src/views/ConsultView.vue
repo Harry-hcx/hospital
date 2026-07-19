@@ -12,7 +12,7 @@
           <div>
             <h4>{{ doctor.name }} <span class="title-tag">{{ doctor.title }}</span></h4>
             <p>{{ doctor.hospitalName }} · {{ doctor.departmentName }}</p>
-            <p class="fee">咨询费：¥{{ doctor.consultFee || 50 }}</p>
+            <p class="fee">咨询费：¥{{ doctor.consultPrice || 0 }}</p>
           </div>
         </div>
         <div class="form-group">
@@ -51,6 +51,8 @@ const router = useRouter()
 const doctor = ref({})
 const members = ref([])
 const submitting = ref(false)
+const loading = ref(false)
+const loadError = ref('')
 const defaultImg = resolveImageUrl('doctor-male-doc.jpg', 'doctor-male-doc.jpg')
 
 const form = ref({ familyMemberId: '', diseaseDesc: '' })
@@ -67,16 +69,19 @@ onMounted(async () => {
 })
 
 async function handleSubmit() {
+  if (!doctor.value.id) { alert('医生信息未加载完成'); return }
   if (!form.value.familyMemberId) { alert('请选择就诊人'); return }
   submitting.value = true
   try {
     const res = await createConsult({
       doctorId: doctor.value.id,
-      familyMemberId: form.value.familyMemberId,
+      familyMemberId: Number(form.value.familyMemberId),
       diseaseDesc: form.value.diseaseDesc
     })
     const d = res?.data || {}
-    router.push(`/consult/pay/${d.orderNo || d.id}`)
+    const orderNo = d.orderNo || d.id
+    if (!orderNo) { alert('咨询创建成功但未返回订单号'); return }
+    router.push(`/consult/pay/${orderNo}`)
   } catch (e) {
     console.error('咨询提交失败', e)
     alert('提交失败，请重试')
