@@ -2,11 +2,16 @@ package com.whlg.hospital;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,11 +24,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class OrderApiTest extends BaseApiTest {
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     void shouldCreateAppointment() throws Exception {
-        Map<String, Object> request = new HashMap<String, Object>();
-        request.put("scheduleId", 1);
-        request.put("familyMemberId", 1);
+        Map<String, Object> request = appointmentRequest();
         request.put("diseaseDesc", "头晕");
 
         mockMvc.perform(post("/api/appointments")
@@ -36,9 +42,7 @@ class OrderApiTest extends BaseApiTest {
 
     @Test
     void shouldRejectDuplicateAppointmentForSameSchedule() throws Exception {
-        Map<String, Object> request = new HashMap<String, Object>();
-        request.put("scheduleId", 1);
-        request.put("familyMemberId", 1);
+        Map<String, Object> request = appointmentRequest();
 
         mockMvc.perform(post("/api/appointments")
                         .header("Authorization", auth())
@@ -53,6 +57,18 @@ class OrderApiTest extends BaseApiTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void shouldIgnoreStaleScheduleDepartmentReference() throws Exception {
+        jdbcTemplate.update("update t_schedule set department_id = ? where id = ?", 999L, 2L);
+
+        mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(appointmentRequest())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderNo").isString());
     }
 
     @Test
@@ -73,28 +89,38 @@ class OrderApiTest extends BaseApiTest {
 
     @Test
     void shouldCancelAppointment() throws Exception {
-        mockMvc.perform(post("/api/appointments/AP202607170001/cancel").header("Authorization", auth()))
+        String orderNo = createAppointment();
+        mockMvc.perform(post("/api/appointments/" + orderNo + "/cancel").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }
 
     @Test
+    void shouldGetAppointmentSuccess() throws Exception {
+        mockMvc.perform(get("/api/appointments/AP202607170001/success").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderNo").value("AP202607170001"));
+    }
+
+    @Test
     void shouldRejectCancellingAppointmentTwice() throws Exception {
-        mockMvc.perform(post("/api/appointments/AP202607170001/cancel").header("Authorization", auth()))
+        String orderNo = createAppointment();
+        mockMvc.perform(post("/api/appointments/" + orderNo + "/cancel").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        mockMvc.perform(post("/api/appointments/AP202607170001/cancel").header("Authorization", auth()))
+        mockMvc.perform(post("/api/appointments/" + orderNo + "/cancel").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test
     void shouldPayAppointment() throws Exception {
+        String orderNo = createAppointment();
         Map<String, Object> request = new HashMap<String, Object>();
-        request.put("payType", 2);
+        request.put("payMethod", "alipay");
 
-        mockMvc.perform(post("/api/appointments/AP202607170001/pay")
+        mockMvc.perform(post("/api/appointments/" + orderNo + "/pay")
                         .header("Authorization", auth())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -103,11 +129,12 @@ class OrderApiTest extends BaseApiTest {
     }
 
     @Test
-    void shouldRejectUnsupportedAppointmentPayType() throws Exception {
+    void shouldRejectUnsupportedAppointmentPayMethod() throws Exception {
+        String orderNo = createAppointment();
         Map<String, Object> request = new HashMap<String, Object>();
-        request.put("payType", 9);
+        request.put("payMethod", "cash");
 
-        mockMvc.perform(post("/api/appointments/AP202607170001/pay")
+        mockMvc.perform(post("/api/appointments/" + orderNo + "/pay")
                         .header("Authorization", auth())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -119,14 +146,15 @@ class OrderApiTest extends BaseApiTest {
     void shouldListMyAppointments() throws Exception {
         mockMvc.perform(get("/api/appointments/my").header("Authorization", auth()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.records").isArray());
+                .andExpect(jsonPath("$.data.list").isArray())
+                .andExpect(jsonPath("$.data.records").doesNotExist());
     }
 
     @Test
     void shouldFilterAppointmentsByStatus() throws Exception {
         mockMvc.perform(get("/api/appointments/my")
                         .header("Authorization", auth())
-                        .param("status", "1"))
+                        .param("status", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1));
 
@@ -139,9 +167,7 @@ class OrderApiTest extends BaseApiTest {
 
     @Test
     void shouldCreateConsult() throws Exception {
-        Map<String, Object> request = new HashMap<String, Object>();
-        request.put("doctorId", 1);
-        request.put("familyMemberId", 1);
+        Map<String, Object> request = consultRequest();
         request.put("diseaseDesc", "复诊");
 
         mockMvc.perform(post("/api/consults")
@@ -161,26 +187,48 @@ class OrderApiTest extends BaseApiTest {
     }
 
     @Test
-    void shouldCancelPendingConsult() throws Exception {
-        mockMvc.perform(post("/api/consults/CO202607170001/cancel").header("Authorization", auth()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
+    void shouldRenderHistoricalConsultWhenDoctorWasDeleted() throws Exception {
+        jdbcTemplate.update("update t_consult set doctor_id = ? where id = ?", 999L, 1L);
 
         mockMvc.perform(get("/api/consults/CO202607170001").header("Authorization", auth()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.doctor").value("医生已下线"));
+
+        mockMvc.perform(get("/api/consults/my").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.list[0].doctorName").value("医生已下线"));
+    }
+
+    @Test
+    void shouldGetConsultSuccess() throws Exception {
+        mockMvc.perform(get("/api/consults/CO202607170001/success").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderNo").value("CO202607170001"));
+    }
+
+    @Test
+    void shouldCancelPendingConsult() throws Exception {
+        String orderNo = createConsult();
+        mockMvc.perform(post("/api/consults/" + orderNo + "/cancel").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/api/consults/" + orderNo).header("Authorization", auth()))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value(5));
 
-        mockMvc.perform(post("/api/consults/CO202607170001/cancel").header("Authorization", auth()))
+        mockMvc.perform(post("/api/consults/" + orderNo + "/cancel").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test
     void shouldPayConsult() throws Exception {
+        String orderNo = createConsult();
         Map<String, Object> request = new HashMap<String, Object>();
-        request.put("payType", 1);
+        request.put("payMethod", "wechat");
 
-        mockMvc.perform(post("/api/consults/CO202607170001/pay")
+        mockMvc.perform(post("/api/consults/" + orderNo + "/pay")
                         .header("Authorization", auth())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -192,7 +240,7 @@ class OrderApiTest extends BaseApiTest {
     void shouldRejectOtherUserConsultPay() throws Exception {
         String otherToken = registerAndLogin("13900139002", "123456");
         Map<String, Object> request = new HashMap<String, Object>();
-        request.put("payType", 1);
+        request.put("payMethod", "wechat");
 
         mockMvc.perform(post("/api/consults/CO202607170001/pay")
                         .header("Authorization", auth(otherToken))
@@ -206,17 +254,18 @@ class OrderApiTest extends BaseApiTest {
     void shouldListMyConsults() throws Exception {
         mockMvc.perform(get("/api/consults/my").header("Authorization", auth()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.records").isArray());
+                .andExpect(jsonPath("$.data.list").isArray())
+                .andExpect(jsonPath("$.data.records").doesNotExist());
     }
 
     @Test
     void shouldFilterConsultsByLifecycleStatus() throws Exception {
         mockMvc.perform(get("/api/consults/my")
                         .header("Authorization", auth())
-                        .param("status", "4"))
+                        .param("status", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.records[0].appointmentTime").exists());
+                .andExpect(jsonPath("$.data.list[0].appointmentTime").exists());
     }
 
     @Test
@@ -229,7 +278,7 @@ class OrderApiTest extends BaseApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.following").value(false));
 
-        mockMvc.perform(post("/api/follow/2/2").header("Authorization", auth()))
+        mockMvc.perform(post("/api/follow/doctor/2").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.following").value(true));
 
@@ -237,7 +286,7 @@ class OrderApiTest extends BaseApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.followCount").value(181));
 
-        mockMvc.perform(post("/api/follow/2/2").header("Authorization", auth()))
+        mockMvc.perform(post("/api/follow/doctor/2").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.following").value(true));
 
@@ -260,11 +309,12 @@ class OrderApiTest extends BaseApiTest {
 
     @Test
     void shouldCreatePayment() throws Exception {
+        String orderNo = createAppointment();
         Map<String, Object> request = new HashMap<String, Object>();
-        request.put("businessOrderNo", "AP202607170001");
+        request.put("businessOrderNo", orderNo);
         request.put("businessType", "appointment");
-        request.put("amount", new BigDecimal("18.00"));
-        request.put("payType", 2);
+        request.put("actualAmount", new BigDecimal("18.00"));
+        request.put("payMethod", "alipay");
 
         mockMvc.perform(post("/api/payments")
                         .header("Authorization", auth())
@@ -279,8 +329,8 @@ class OrderApiTest extends BaseApiTest {
         Map<String, Object> request = new HashMap<String, Object>();
         request.put("businessOrderNo", "AP202607170001");
         request.put("businessType", "unknown");
-        request.put("amount", new BigDecimal("18.00"));
-        request.put("payType", 2);
+        request.put("actualAmount", new BigDecimal("18.00"));
+        request.put("payMethod", "alipay");
 
         mockMvc.perform(post("/api/payments")
                         .header("Authorization", auth())
@@ -292,11 +342,12 @@ class OrderApiTest extends BaseApiTest {
 
     @Test
     void shouldHandlePaymentCallback() throws Exception {
+        String orderNo = createAppointment();
         Map<String, Object> createRequest = new HashMap<String, Object>();
-        createRequest.put("businessOrderNo", "AP202607170001");
+        createRequest.put("businessOrderNo", orderNo);
         createRequest.put("businessType", "appointment");
-        createRequest.put("amount", new BigDecimal("18.00"));
-        createRequest.put("payType", 2);
+        createRequest.put("actualAmount", new BigDecimal("18.00"));
+        createRequest.put("payMethod", "alipay");
 
         MvcResult createResult = mockMvc.perform(post("/api/payments")
                         .header("Authorization", auth())
@@ -312,8 +363,7 @@ class OrderApiTest extends BaseApiTest {
         callbackRequest.put("tradeNo", "TRADE-001");
         callbackRequest.put("payStatus", 1);
 
-                mockMvc.perform(post("/api/payments/callback")
-                        .header("X-Payment-Signature", "test-payment-secret")
+        mockMvc.perform(post("/api/payments/callback")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(callbackRequest)))
                 .andExpect(status().isOk())
@@ -334,5 +384,47 @@ class OrderApiTest extends BaseApiTest {
         mockMvc.perform(get("/api/payments/AP202607170001").header("Authorization", auth(otherToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(403));
+    }
+
+    private Map<String, Object> appointmentRequest() {
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("doctorId", 1);
+        request.put("hospitalId", 1);
+        request.put("patientId", 1);
+        request.put("appointmentDate", LocalDate.now().plusDays(2).toString());
+        request.put("appointmentTime", "09:00-10:00");
+        return request;
+    }
+
+    private String createAppointment() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/appointments")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(appointmentRequest())))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("orderNo").asText();
+    }
+
+    private Map<String, Object> consultRequest() {
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("doctorId", 1);
+        request.put("patientName", "张三");
+        request.put("patientPhone", "13800138000");
+        request.put("diseaseDesc", "复诊");
+        request.put("appointmentTime", LocalDateTime.now().plusDays(1).withNano(0)
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        request.put("duration", 30);
+        return request;
+    }
+
+    private String createConsult() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/consults")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(consultRequest())))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("orderNo").asText();
     }
 }

@@ -27,6 +27,18 @@
           <label>病情描述</label>
           <textarea v-model="form.diseaseDesc" rows="4" placeholder="请详细描述您的症状、持续时间等..."></textarea>
         </div>
+        <div class="form-group">
+          <label>预约时间</label>
+          <input v-model="form.appointmentTime" type="datetime-local" />
+        </div>
+        <div class="form-group">
+          <label>咨询时长</label>
+          <select v-model.number="form.duration">
+            <option :value="15">15 分钟</option>
+            <option :value="30">30 分钟</option>
+            <option :value="60">60 分钟</option>
+          </select>
+        </div>
         <button class="btn-primary btn-submit" @click="handleSubmit" :disabled="submitting">
           {{ submitting ? '提交中...' : '确认咨询' }}
         </button>
@@ -55,7 +67,7 @@ const loading = ref(false)
 const loadError = ref('')
 const defaultImg = resolveImageUrl('doctor-male-doc.jpg', 'doctor-male-doc.jpg')
 
-const form = ref({ familyMemberId: '', diseaseDesc: '' })
+const form = ref({ familyMemberId: '', diseaseDesc: '', appointmentTime: '', duration: 30 })
 
 onMounted(async () => {
   const doctorId = route.query.doctorId
@@ -71,12 +83,18 @@ onMounted(async () => {
 async function handleSubmit() {
   if (!doctor.value.id) { alert('医生信息未加载完成'); return }
   if (!form.value.familyMemberId) { alert('请选择就诊人'); return }
+  if (!form.value.appointmentTime) { alert('请选择预约时间'); return }
+  const selectedMember = members.value.find((member) => Number(member.id) === Number(form.value.familyMemberId))
+  if (!selectedMember) { alert('所选就诊人不存在，请重新选择'); return }
   submitting.value = true
   try {
     const res = await createConsult({
-      doctorId: doctor.value.id,
-      familyMemberId: Number(form.value.familyMemberId),
-      diseaseDesc: form.value.diseaseDesc
+      doctorId: Number(doctor.value.id),
+      patientName: selectedMember.name,
+      patientPhone: selectedMember.phone,
+      diseaseDesc: form.value.diseaseDesc,
+      appointmentTime: `${form.value.appointmentTime.replace('T', ' ')}:00`,
+      duration: Number(form.value.duration)
     })
     const d = res?.data || {}
     const orderNo = d.orderNo || d.id
@@ -103,7 +121,7 @@ async function handleSubmit() {
 .fee { color: #e53935; font-weight: 600; font-size: 14px; margin-top: 4px; }
 .form-group { margin-bottom: 20px; }
 .form-group label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-.form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; }
+.form-group select, .form-group textarea, .form-group input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; }
 .form-group textarea { resize: vertical; }
 .add-link { font-size: 13px; color: var(--primary); margin-left: 12px; }
 .btn-submit { width: 100%; padding: 14px; font-size: 16px; margin-top: 16px; }

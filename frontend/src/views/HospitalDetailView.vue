@@ -93,7 +93,7 @@ onMounted(async () => {
     if (localStorage.getItem('token')) {
       const fRes = await getMyFollows({ type: 1, page: 1, pageSize: 1000 })
       const fd = fRes.data.data || fRes.data
-      isFollowed.value = (fd.records || []).some(item => Number(item.followId) === Number(id))
+      isFollowed.value = (fd.list || []).some(item => Number(item.followId) === Number(id))
     }
   } catch (e) {
     console.error('加载医院详情失败', e)
@@ -115,7 +115,7 @@ async function fetchDoctors() {
       departmentId: activeDeptId.value || undefined,
     })
     const d = res.data.data || res.data
-    doctors.value = d.records || []
+    doctors.value = d.list || []
     doctorTotal.value = d.total || 0
   } catch (e) {
     console.error('加载医生列表失败', e)

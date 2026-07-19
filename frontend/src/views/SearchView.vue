@@ -125,9 +125,8 @@ async function fetchData() {
       pageSize: pageSize.value
     })
     const d = res?.data || {}
-    const key = `${activeTab.value}List`
-    list.value = Array.isArray(d[key]) ? d[key] : []
-    total.value = d[`${activeTab.value}Count`] ?? d.counts?.[activeTab.value] ?? list.value.length
+    list.value = Array.isArray(d[activeTab.value]) ? d[activeTab.value] : []
+    total.value = d.counts?.[activeTab.value] ?? list.value.length
   } catch (e) { console.error('搜索失败', e) }
   finally { loading.value = false }
 }

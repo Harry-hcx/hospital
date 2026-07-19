@@ -35,6 +35,11 @@ public class ConsultController {
         return R.ok(orderService.getConsult(orderNo));
     }
 
+    @GetMapping("/{orderNo}/success")
+    public R<Map<String, Object>> success(@PathVariable("orderNo") String orderNo) {
+        return R.ok(orderService.getConsult(orderNo));
+    }
+
     @PostMapping("/{orderNo}/cancel")
     public R<Object> cancel(@PathVariable("orderNo") String orderNo) {
         orderService.cancelConsult(orderNo);

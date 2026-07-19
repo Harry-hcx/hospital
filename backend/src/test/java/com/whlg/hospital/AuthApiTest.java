@@ -18,10 +18,9 @@ class AuthApiTest extends BaseApiTest {
     @Test
     void shouldRegister() throws Exception {
         Map<String, Object> request = new HashMap<String, Object>();
+        request.put("username", "api-user");
         request.put("phone", "13900139000");
         request.put("password", "123456");
-        request.put("confirmPassword", "123456");
-        request.put("captcha", "8888");
         request.put("gender", 2);
 
         mockMvc.perform(post("/api/auth/register")
@@ -51,8 +50,9 @@ class AuthApiTest extends BaseApiTest {
     void shouldGetCurrentUser() throws Exception {
         mockMvc.perform(get("/api/auth/me").header("Authorization", auth()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.userInfo.id").value(1))
-                .andExpect(jsonPath("$.data.userInfo.name").value("张三"));
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.realName").value("张三"))
+                .andExpect(jsonPath("$.data.userInfo").doesNotExist());
     }
 
     @Test
@@ -60,7 +60,6 @@ class AuthApiTest extends BaseApiTest {
         Map<String, Object> request = new HashMap<String, Object>();
         request.put("oldPassword", "123456");
         request.put("newPassword", "abc12345");
-        request.put("confirmPassword", "abc12345");
 
         mockMvc.perform(post("/api/auth/change-password")
                         .header("Authorization", auth())

@@ -27,14 +27,14 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
-import { getConsultDetail } from '@/api/consult'
+import { getConsultSuccess } from '@/api/consult'
 
 const route = useRoute()
 const order = ref({})
 
 onMounted(async () => {
   try {
-    const res = await getConsultDetail(route.params.orderNo)
+    const res = await getConsultSuccess(route.params.orderNo)
     order.value = res?.data || {}
   } catch (e) { console.error('加载咨询结果失败', e) }
 })

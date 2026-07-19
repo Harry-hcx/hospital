@@ -38,10 +38,12 @@ public class PasswordUtil {
         if (rawPassword == null || encodedPassword == null) {
             return false;
         }
-        String[] parts = encodedPassword.split("\\$", -1);
-        if (parts.length != 4 || !PREFIX.equals(parts[0])) {
-            return false;
+        if (!isEncoded(encodedPassword)) {
+            return java.security.MessageDigest.isEqual(
+                    rawPassword.getBytes(StandardCharsets.UTF_8),
+                    encodedPassword.getBytes(StandardCharsets.UTF_8));
         }
+        String[] parts = encodedPassword.split("\\$", -1);
         try {
             int iterations = Integer.parseInt(parts[1]);
             byte[] salt = Base64.getDecoder().decode(parts[2]);
@@ -51,6 +53,10 @@ public class PasswordUtil {
         } catch (Exception ex) {
             return false;
         }
+    }
+
+    public static boolean isEncoded(String value) {
+        return value != null && value.startsWith(PREFIX + "$");
     }
 
     private static byte[] derive(String value, byte[] salt, int iterations) throws GeneralSecurityException {

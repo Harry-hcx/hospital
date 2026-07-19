@@ -121,18 +121,16 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     public Map<String, Object> register(RegisterRequest request) {
         check(request != null, "请求体不能为空");
         String phone = normalizePhone(request.getPhone());
+        String username = request.getUsername() == null ? null : request.getUsername().trim();
+        check(username != null && !username.isEmpty(), "用户名不能为空");
         check(PHONE_PATTERN.matcher(phone).matches(), "手机号格式不正确");
         check(request.getPassword() != null && !request.getPassword().trim().isEmpty(), "密码不能为空");
-        check(request.getPassword().equals(request.getConfirmPassword()), "两次密码不一致");
-        verifyCaptcha(phone, request.getCaptcha());
 
-        User exists = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
-        if (exists != null) {
-            throw new ApiException(StatusCode.BAD_REQUEST, "手机号已注册");
-        }
+        check(userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getPhone, phone)) == 0, "手机号已注册");
+        check(userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, username)) == 0, "用户名已存在");
 
         User user = new User();
-        user.setUsername(phone);
+        user.setUsername(username);
         user.setPhone(phone);
         user.setPassword(PasswordUtil.encode(request.getPassword()));
         user.setRealName(request.getRealName() == null || request.getRealName().trim().isEmpty()
@@ -145,8 +143,6 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.insert(user);
-        stringRedisTemplate.delete(captchaCodeKey(phone));
-
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("userId", user.getId());
         return result;
@@ -158,6 +154,11 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, request.getPhone()));
         check(user != null && Integer.valueOf(1).equals(user.getStatus())
                 && PasswordUtil.matches(request.getPassword(), user.getPassword()), "手机号或密码错误");
+        if (!PasswordUtil.isEncoded(user.getPassword())) {
+            user.setPassword(PasswordUtil.encode(request.getPassword()));
+            user.setUpdateTime(LocalDateTime.now());
+            userMapper.updateById(user);
+        }
 
         byte[] tokenBytes = new byte[32];
         TOKEN_RANDOM.nextBytes(tokenBytes);
@@ -180,9 +181,7 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     @Override
     public Map<String, Object> me() {
         User user = userMapper.selectById(requireUserId());
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("userInfo", buildUserInfo(user));
-        return result;
+        return buildUserInfo(user);
     }
 
     @Override
@@ -191,7 +190,6 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
         User user = userMapper.selectById(userId);
         check(PasswordUtil.matches(request.getOldPassword(), user.getPassword()), "旧密码错误");
         check(request.getNewPassword() != null && !request.getNewPassword().trim().isEmpty(), "新密码不能为空");
-        check(request.getNewPassword().equals(request.getConfirmPassword()), "两次密码不一致");
         user.setPassword(PasswordUtil.encode(request.getNewPassword()));
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
@@ -262,7 +260,7 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     private Map<String, Object> buildUserInfo(User user) {
         Map<String, Object> userInfo = new LinkedHashMap<String, Object>();
         userInfo.put("id", user.getId());
-        userInfo.put("name", user.getRealName());
+        userInfo.put("realName", user.getRealName());
         userInfo.put("phone", user.getPhone());
         userInfo.put("email", user.getEmail());
         userInfo.put("gender", user.getGender());

@@ -81,7 +81,7 @@ async function fetchData() {
   try {
     const res = await getArticles({ page: page.value, pageSize: pageSize.value, ...filters.value })
     const d = res?.data || {}
-    articles.value = d.records || []
+    articles.value = d.list || []
     total.value = d.total || 0
   } catch (e) {
     error.value = '文章列表加载失败，请稍后重试'

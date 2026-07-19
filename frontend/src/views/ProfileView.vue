@@ -7,19 +7,19 @@
         <h2>个人资料</h2>
         <div class="form-card">
           <div class="avatar-section">
-            <img :src="resolveImageUrl(form.avatar, 'icons-pa.jpg') || defaultImg" :alt="form.name" />
+            <img :src="resolveImageUrl(form.avatar, 'icons-pa.jpg') || defaultImg" :alt="form.realName" />
             <button class="btn-change">更换头像</button>
           </div>
           <div class="form-group">
             <label>姓名</label>
-            <input v-model="form.name" placeholder="请输入姓名" />
+            <input v-model="form.realName" placeholder="请输入姓名" />
           </div>
           <div class="form-group">
             <label>性别</label>
             <select v-model="form.gender">
-              <option disabled value="0">请选择性别</option>
-              <option value="1">男</option>
-              <option value="2">女</option>
+              <option disabled :value="0">请选择性别</option>
+              <option :value="1">男</option>
+              <option :value="2">女</option>
             </select>
           </div>
           <div class="form-group">
@@ -51,7 +51,7 @@ import { getProfile, updateProfile } from '@/api/user'
 import { resolveImageUrl } from '@/utils/asset'
 
 const defaultImg = resolveImageUrl('/avatar/user-1.png', 'icons-pa.jpg')
-const form = ref({ name: '', gender: '0', phone: '', email: '', birthday: '', avatar: '' })
+const form = ref({ realName: '', gender: 0, phone: '', email: '', birthday: '', avatar: '' })
 const loading = ref(false)
 const saving = ref(false)
 const loadError = ref('')
@@ -67,7 +67,7 @@ onMounted(async () => {
 async function handleSave() {
   saving.value = true
   try {
-    await updateProfile({ ...form.value, gender: form.value.gender === '' ? null : Number(form.value.gender) })
+    await updateProfile({ ...form.value, gender: form.value.gender === 0 ? null : Number(form.value.gender) })
     alert('保存成功')
   } catch (e) {
     console.error('保存失败', e)

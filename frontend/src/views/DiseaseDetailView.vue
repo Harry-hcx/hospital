@@ -55,7 +55,7 @@ onMounted(async () => {
     if (localStorage.getItem('token')) {
       const fRes = await getMyFollows({ type: 3, page: 1, pageSize: 1000 })
       const fd = fRes.data.data || fRes.data
-      isFollowed.value = (fd.records || []).some(item => Number(item.followId) === Number(route.params.id))
+      isFollowed.value = (fd.list || []).some(item => Number(item.followId) === Number(route.params.id))
     }
   } catch (e) { console.error('加载疾病详情失败', e) }
 })

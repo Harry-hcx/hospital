@@ -56,7 +56,7 @@ async function handlePay() {
   paying.value = true
   try {
     if (!order.value.orderNo) { alert('订单信息未加载完成'); return }
-    await payAppointment(route.params.orderNo, { payType: payMethod.value === 'wechat' ? 1 : 2 })
+    await payAppointment(route.params.orderNo, { payMethod: payMethod.value })
     router.push(`/reservation/success/${route.params.orderNo}`)
   } catch (e) {
     console.error('支付失败', e)

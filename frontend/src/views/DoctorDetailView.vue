@@ -26,7 +26,7 @@
         <h3>出诊安排</h3>
         <div class="schedule-grid">
           <div class="schedule-card" v-for="s in schedules" :key="s.id">
-            <div class="s-date">{{ s.scheduleDate }}</div>
+            <div class="s-date">{{ s.date }}</div>
             <div class="s-period">{{ s.timeSlot }}</div>
             <div class="s-fee">¥{{ s.registrationPrice }}</div>
             <div class="s-num">剩余 {{ s.remainCount || 0 }} 号</div>
@@ -92,7 +92,7 @@ onMounted(async () => {
     try {
       const res = await getMyFollows({ type: 2, page: 1, pageSize: 1000 })
       const d = res.data.data || res.data
-      isFollowed.value = (d.records || []).some(item => Number(item.followId) === Number(id))
+      isFollowed.value = (d.list || []).some(item => Number(item.followId) === Number(id))
     } catch (e) { /* ignore */ }
   }
   fetchReviews()
@@ -102,7 +102,7 @@ async function fetchReviews() {
   try {
     const res = await getDoctorReviews(route.params.id, { page: reviewPage.value, pageSize: reviewPageSize.value })
     const d = res.data.data || res.data
-    reviews.value = d.records || []
+    reviews.value = d.list || []
     reviewTotal.value = d.total || 0
   } catch (e) { console.error('加载评价失败', e) }
 }

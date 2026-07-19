@@ -54,7 +54,7 @@ async function handlePay() {
   paying.value = true
   try {
     if (!order.value.orderNo) { alert('订单信息未加载完成'); return }
-    await payConsult(route.params.orderNo, { payType: payMethod.value === 'wechat' ? 1 : 2 })
+    await payConsult(route.params.orderNo, { payMethod: payMethod.value })
     router.push(`/consult/success/${route.params.orderNo}`)
   } catch (e) {
     console.error('支付失败', e)

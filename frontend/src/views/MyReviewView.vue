@@ -47,7 +47,7 @@ async function fetchData() {
   try {
     const res = await getMyReviews({ page: page.value, pageSize: pageSize.value })
     const d = res.data.data || res.data
-    reviews.value = d.records || []
+    reviews.value = d.list || []
     total.value = d.total || 0
   } catch (e) { loadError.value = '加载评价失败，请稍后重试'; console.error('加载评价列表失败', e) }
   finally { loading.value = false }
