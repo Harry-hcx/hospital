@@ -7,6 +7,7 @@
       </div>
       <div class="form-card">
         <h2>订单支付</h2>
+        <p v-if="payHint" class="pay-hint">{{ payHint }}</p>
         <div class="order-info" v-if="order.orderNo">
           <div class="info-row"><span>订单编号</span><strong>{{ order.orderNo }}</strong></div>
           <div class="info-row"><span>医生</span><strong>{{ order.doctor }}</strong></div>
@@ -32,7 +33,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
@@ -43,25 +44,48 @@ const router = useRouter()
 const order = ref({})
 const payMethod = ref('wechat')
 const paying = ref(false)
-const loadError = ref('')
+
+const payHint = computed(() => {
+  if (route.query.payResult === 'cancelled') return '您已取消或中断支付宝支付，订单仍为待支付状态。'
+  if (route.query.payResult === 'verify_failed') return '支付结果校验失败，请重新发起支付。'
+  return ''
+})
 
 onMounted(async () => {
   try {
     const res = await getAppointmentDetail(route.params.orderNo)
     order.value = res?.data || {}
-  } catch (e) { console.error('加载订单详情失败', e) }
+  } catch (e) {
+    console.error('加载订单详情失败', e)
+  }
 })
 
 async function handlePay() {
   paying.value = true
   try {
-    if (!order.value.orderNo) { alert('订单信息未加载完成'); return }
-    await payAppointment(route.params.orderNo, { payMethod: payMethod.value })
-    router.push(`/reservation/success/${route.params.orderNo}`)
+    if (!order.value.orderNo) {
+      alert('订单信息未加载完成')
+      return
+    }
+    const res = await payAppointment(route.params.orderNo, { payMethod: payMethod.value })
+    const data = res?.data || {}
+    if (data.payMethod === 'alipay' && data.formHtml) {
+      document.open()
+      document.write(data.formHtml)
+      document.close()
+      return
+    }
+    if (data.redirectUrl) {
+      router.push(data.redirectUrl)
+      return
+    }
+    alert('未获取到支付跳转信息')
   } catch (e) {
     console.error('支付失败', e)
     alert('支付失败，请重试')
-  } finally { paying.value = false }
+  } finally {
+    paying.value = false
+  }
 }
 </script>
 
@@ -70,7 +94,8 @@ async function handlePay() {
 .page-breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
 .page-breadcrumb a { color: var(--primary); }
 .form-card { max-width: 600px; margin: 0 auto; background: var(--bg-white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px; }
-.form-card h2 { font-size: 22px; margin-bottom: 24px; }
+.form-card h2 { font-size: 22px; margin-bottom: 16px; }
+.pay-hint { margin-bottom: 16px; padding: 12px 14px; border-radius: var(--radius); background: #fff4e5; color: #ad6800; font-size: 14px; }
 .order-info { background: var(--bg); border-radius: var(--radius); padding: 16px; margin-bottom: 24px; }
 .info-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; border-bottom: 1px solid var(--border); }
 .info-row:last-child { border-bottom: none; }

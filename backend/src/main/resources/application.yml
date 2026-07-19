@@ -32,5 +32,8 @@ auth:
     phones: ""
 payment:
   callback-secret: ${PAYMENT_CALLBACK_SECRET:}
+alipay:
+  server-base-url: ${ALIPAY_SERVER_BASE_URL:http://localhost:8080}
+  frontend-base-url: ${ALIPAY_FRONTEND_BASE_URL:http://localhost:3000}
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}

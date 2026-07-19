@@ -162,6 +162,14 @@ class ResourceApiTest extends BaseApiTest {
     }
 
     @Test
+    void shouldIncludeSubDepartmentArticlesWhenFilteringPrimaryDepartment() throws Exception {
+        mockMvc.perform(get("/api/articles").param("departmentId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.list[*].title", hasItem("高血压防治指南")));
+    }
+
+    @Test
     void shouldGetArticleDetail() throws Exception {
         mockMvc.perform(get("/api/articles/1"))
                 .andExpect(status().isOk())

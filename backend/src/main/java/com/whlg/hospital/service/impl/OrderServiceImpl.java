@@ -22,10 +22,13 @@ import com.whlg.hospital.mapper.HospitalMapper;
 import com.whlg.hospital.mapper.MessageMapper;
 import com.whlg.hospital.mapper.PaymentFlowMapper;
 import com.whlg.hospital.mapper.ScheduleMapper;
+import com.whlg.hospital.service.AlipayService;
 import com.whlg.hospital.service.OrderService;
 import com.whlg.hospital.support.ApiException;
 import com.whlg.hospital.util.StatusCode;
 import com.whlg.hospital.vo.PageResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +44,8 @@ import java.util.stream.Collectors;
 @Service
 public class OrderServiceImpl extends ServiceSupport implements OrderService {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderServiceImpl.class);
+
     private final AppointmentMapper appointmentMapper;
     private final ConsultMapper consultMapper;
     private final DoctorMapper doctorMapper;
@@ -49,6 +54,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     private final MessageMapper messageMapper;
     private final PaymentFlowMapper paymentFlowMapper;
     private final ScheduleMapper scheduleMapper;
+    private final AlipayService alipayService;
 
     public OrderServiceImpl(AppointmentMapper appointmentMapper,
                             ConsultMapper consultMapper,
@@ -57,7 +63,8 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                             HospitalMapper hospitalMapper,
                             MessageMapper messageMapper,
                             PaymentFlowMapper paymentFlowMapper,
-                            ScheduleMapper scheduleMapper) {
+                            ScheduleMapper scheduleMapper,
+                            AlipayService alipayService) {
         this.appointmentMapper = appointmentMapper;
         this.consultMapper = consultMapper;
         this.doctorMapper = doctorMapper;
@@ -66,6 +73,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         this.messageMapper = messageMapper;
         this.paymentFlowMapper = paymentFlowMapper;
         this.scheduleMapper = scheduleMapper;
+        this.alipayService = alipayService;
     }
 
     @Override
@@ -174,33 +182,28 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     }
 
     @Override
+    @Transactional
     public Map<String, Object> payAppointment(String orderNo, PayRequest request) {
         Appointment appointment = requireOwnedAppointment(orderNo);
         check(Integer.valueOf(1).equals(appointment.getStatus()), "当前订单不可支付");
         int payMethod = resolvePayMethod(request == null ? null : request.getPayMethod());
-        appointment.setStatus(2);
-        appointment.setPayTime(LocalDateTime.now());
-        appointment.setUpdateTime(LocalDateTime.now());
-        appointmentMapper.updateById(appointment);
+        PaymentFlow paymentFlow = upsertPendingPaymentFlow(orderNo, 1, payMethod, appointment.getAmount());
+        log.info("Appointment pay requested. orderNo={}, payMethod={}, amount={}, paymentFlowStatus={}",
+                orderNo, paymentMethodName(payMethod), appointment.getAmount(), paymentFlow.getPayStatus());
 
-        PaymentFlow paymentFlow = paymentFlowMapper.selectOne(new LambdaQueryWrapper<PaymentFlow>().eq(PaymentFlow::getBusinessOrderNo, orderNo));
-        if (paymentFlow == null) {
-            paymentFlow = new PaymentFlow();
-            paymentFlow.setBusinessOrderNo(orderNo);
-            paymentFlow.setBusinessType(1);
-            paymentFlow.setActualAmount(appointment.getAmount());
-            paymentFlow.setCreateTime(LocalDateTime.now());
+        if (isWechat(payMethod)) {
+            updateBusinessPaidState(orderNo, 1);
+            markPaymentSuccess(paymentFlow, nextOrderNo("WX"), "wechat-success");
+            return buildWechatPayResult(orderNo, paymentFlow, "/reservation/success/" + orderNo);
         }
-        paymentFlow.setPayMethod(payMethod);
-        paymentFlow.setThirdPartyTradeNo(nextOrderNo("TP"));
-        paymentFlow.setPayStatus(1);
-        paymentFlow.setPaySuccessTime(LocalDateTime.now());
-        paymentFlow.setUpdateTime(LocalDateTime.now());
-        savePaymentFlow(paymentFlow);
 
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("success", true);
-        return result;
+        String formHtml = alipayService.createPageForm(
+                orderNo,
+                appointment.getAmount(),
+                "预约挂号订单-" + orderNo,
+                "预约挂号支付"
+        );
+        return buildAlipayPayResult(orderNo, paymentFlow, formHtml);
     }
 
     @Override
@@ -297,33 +300,28 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     }
 
     @Override
+    @Transactional
     public Map<String, Object> payConsult(String orderNo, PayRequest request) {
         Consult consult = requireOwnedConsult(orderNo);
         check(Integer.valueOf(1).equals(consult.getStatus()), "当前咨询不可支付");
         int payMethod = resolvePayMethod(request == null ? null : request.getPayMethod());
-        consult.setStatus(2);
-        consult.setPayTime(LocalDateTime.now());
-        consult.setUpdateTime(LocalDateTime.now());
-        consultMapper.updateById(consult);
+        PaymentFlow paymentFlow = upsertPendingPaymentFlow(orderNo, 2, payMethod, consult.getAmount());
+        log.info("Consult pay requested. orderNo={}, payMethod={}, amount={}, paymentFlowStatus={}",
+                orderNo, paymentMethodName(payMethod), consult.getAmount(), paymentFlow.getPayStatus());
 
-        PaymentFlow paymentFlow = paymentFlowMapper.selectOne(new LambdaQueryWrapper<PaymentFlow>().eq(PaymentFlow::getBusinessOrderNo, orderNo));
-        if (paymentFlow == null) {
-            paymentFlow = new PaymentFlow();
-            paymentFlow.setBusinessOrderNo(orderNo);
-            paymentFlow.setBusinessType(2);
-            paymentFlow.setActualAmount(consult.getAmount());
-            paymentFlow.setCreateTime(LocalDateTime.now());
+        if (isWechat(payMethod)) {
+            updateBusinessPaidState(orderNo, 2);
+            markPaymentSuccess(paymentFlow, nextOrderNo("WX"), "wechat-success");
+            return buildWechatPayResult(orderNo, paymentFlow, "/consult/success/" + orderNo);
         }
-        paymentFlow.setPayMethod(payMethod);
-        paymentFlow.setThirdPartyTradeNo(nextOrderNo("TP"));
-        paymentFlow.setPayStatus(1);
-        paymentFlow.setPaySuccessTime(LocalDateTime.now());
-        paymentFlow.setUpdateTime(LocalDateTime.now());
-        savePaymentFlow(paymentFlow);
 
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("success", true);
-        return result;
+        String formHtml = alipayService.createPageForm(
+                orderNo,
+                consult.getAmount(),
+                "在线咨询订单-" + orderNo,
+                "在线咨询支付"
+        );
+        return buildAlipayPayResult(orderNo, paymentFlow, formHtml);
     }
 
     @Override
@@ -362,46 +360,50 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         BigDecimal businessAmount = getBusinessAmount(request.getBusinessOrderNo(), businessType);
         check(businessAmount.compareTo(request.getActualAmount()) == 0, "支付金额不匹配");
 
-        PaymentFlow paymentFlow = paymentFlowMapper.selectOne(new LambdaQueryWrapper<PaymentFlow>().eq(PaymentFlow::getBusinessOrderNo, request.getBusinessOrderNo()));
-        if (paymentFlow == null) {
-            paymentFlow = new PaymentFlow();
-            paymentFlow.setBusinessOrderNo(request.getBusinessOrderNo());
-            paymentFlow.setBusinessType(businessType);
-            paymentFlow.setCreateTime(LocalDateTime.now());
-        }
-        paymentFlow.setPayMethod(payMethod);
-        paymentFlow.setActualAmount(businessAmount);
-        paymentFlow.setPayStatus(0);
-        paymentFlow.setThirdPartyTradeNo(nextOrderNo("PAY"));
-        paymentFlow.setUpdateTime(LocalDateTime.now());
-        savePaymentFlow(paymentFlow);
-
+        PaymentFlow paymentFlow = upsertPendingPaymentFlow(request.getBusinessOrderNo(), businessType, payMethod, businessAmount);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("paymentNo", paymentFlow.getThirdPartyTradeNo());
+        result.put("paymentNo", paymentFlow.getBusinessOrderNo());
+        result.put("businessOrderNo", paymentFlow.getBusinessOrderNo());
+        result.put("payMethod", paymentMethodName(paymentFlow.getPayMethod()));
+        result.put("payStatus", paymentFlow.getPayStatus());
         return result;
     }
 
     @Override
+    @Transactional
     public void paymentCallback(PaymentCallbackRequest request) {
         check(request != null && request.getPaymentNo() != null && request.getTradeNo() != null
                 && request.getPayStatus() != null, "支付回调参数不完整");
-        PaymentFlow paymentFlow = paymentFlowMapper.selectOne(new LambdaQueryWrapper<PaymentFlow>().eq(PaymentFlow::getThirdPartyTradeNo, request.getPaymentNo()));
-        check(paymentFlow != null, "支付流水不存在");
         check(request.getPayStatus() >= 0 && request.getPayStatus() <= 3, "支付状态不支持");
+        log.info("Payment callback received. paymentNo={}, tradeNo={}, payStatus={}",
+                request.getPaymentNo(), request.getTradeNo(), request.getPayStatus());
+
+        PaymentFlow paymentFlow = paymentFlowMapper.selectOne(new LambdaQueryWrapper<PaymentFlow>()
+                .eq(PaymentFlow::getBusinessOrderNo, request.getPaymentNo()));
+        check(paymentFlow != null, "支付流水不存在");
+        log.info("Payment flow loaded. paymentNo={}, businessType={}, payMethod={}, currentStatus={}",
+                paymentFlow.getBusinessOrderNo(), paymentFlow.getBusinessType(), paymentFlow.getPayMethod(), paymentFlow.getPayStatus());
+
         if (Integer.valueOf(1).equals(paymentFlow.getPayStatus())) {
-            check(Integer.valueOf(1).equals(request.getPayStatus())
-                    && request.getTradeNo().equals(paymentFlow.getThirdPartyTradeNo()), "支付状态不可重复变更");
+            log.info("Payment callback ignored because flow already paid. paymentNo={}, tradeNo={}",
+                    request.getPaymentNo(), request.getTradeNo());
             return;
         }
+
         if (Integer.valueOf(1).equals(request.getPayStatus())) {
             updateBusinessPaidState(paymentFlow.getBusinessOrderNo(), paymentFlow.getBusinessType());
+            markPaymentSuccess(paymentFlow, request.getTradeNo(), "callback-success");
+            log.info("Payment callback marked success. paymentNo={}, tradeNo={}, businessType={}",
+                    request.getPaymentNo(), request.getTradeNo(), paymentFlow.getBusinessType());
+            return;
         }
-        paymentFlow.setThirdPartyTradeNo(request.getTradeNo());
+
         paymentFlow.setPayStatus(request.getPayStatus());
-        paymentFlow.setPaySuccessTime(Integer.valueOf(1).equals(request.getPayStatus()) ? LocalDateTime.now() : null);
-        paymentFlow.setOriginalCallback("callback-success");
+        paymentFlow.setOriginalCallback("callback-non-success");
         paymentFlow.setUpdateTime(LocalDateTime.now());
         paymentFlowMapper.updateById(paymentFlow);
+        log.info("Payment callback saved non-success status. paymentNo={}, payStatus={}",
+                request.getPaymentNo(), request.getPayStatus());
     }
 
     @Override
@@ -412,7 +414,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         }
         ensureBusinessOwner(businessOrderNo, paymentFlow.getBusinessType());
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("paymentNo", paymentFlow.getThirdPartyTradeNo());
+        result.put("paymentNo", paymentFlow.getBusinessOrderNo());
         result.put("businessOrderNo", paymentFlow.getBusinessOrderNo());
         result.put("actualAmount", paymentFlow.getActualAmount());
         result.put("payMethod", paymentMethodName(paymentFlow.getPayMethod()));
@@ -427,6 +429,60 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         } else {
             paymentFlowMapper.updateById(paymentFlow);
         }
+    }
+
+    private PaymentFlow upsertPendingPaymentFlow(String businessOrderNo, Integer businessType, Integer payMethod, BigDecimal amount) {
+        PaymentFlow paymentFlow = paymentFlowMapper.selectOne(new LambdaQueryWrapper<PaymentFlow>()
+                .eq(PaymentFlow::getBusinessOrderNo, businessOrderNo));
+        if (paymentFlow == null) {
+            paymentFlow = new PaymentFlow();
+            paymentFlow.setBusinessOrderNo(businessOrderNo);
+            paymentFlow.setBusinessType(businessType);
+            paymentFlow.setCreateTime(LocalDateTime.now());
+        }
+        paymentFlow.setPayMethod(payMethod);
+        paymentFlow.setActualAmount(amount);
+        paymentFlow.setPayStatus(0);
+        paymentFlow.setPaySuccessTime(null);
+        paymentFlow.setOriginalCallback(null);
+        paymentFlow.setUpdateTime(LocalDateTime.now());
+        savePaymentFlow(paymentFlow);
+        log.info("Pending payment flow upserted. orderNo={}, businessType={}, payMethod={}, amount={}, payStatus={}",
+                businessOrderNo, businessType, payMethod, amount, paymentFlow.getPayStatus());
+        return paymentFlow;
+    }
+
+    private void markPaymentSuccess(PaymentFlow paymentFlow, String tradeNo, String callbackFlag) {
+        paymentFlow.setThirdPartyTradeNo(tradeNo);
+        paymentFlow.setPayStatus(1);
+        paymentFlow.setPaySuccessTime(LocalDateTime.now());
+        paymentFlow.setOriginalCallback(callbackFlag);
+        paymentFlow.setUpdateTime(LocalDateTime.now());
+        paymentFlowMapper.updateById(paymentFlow);
+        log.info("Payment flow marked success. orderNo={}, tradeNo={}, callbackFlag={}",
+                paymentFlow.getBusinessOrderNo(), tradeNo, callbackFlag);
+    }
+
+    private Map<String, Object> buildWechatPayResult(String orderNo, PaymentFlow paymentFlow, String successPath) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("businessOrderNo", orderNo);
+        result.put("paymentNo", paymentFlow.getBusinessOrderNo());
+        result.put("payMethod", "wechat");
+        result.put("payStatus", 1);
+        result.put("redirectUrl", successPath);
+        result.put("success", true);
+        return result;
+    }
+
+    private Map<String, Object> buildAlipayPayResult(String orderNo, PaymentFlow paymentFlow, String formHtml) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("businessOrderNo", orderNo);
+        result.put("paymentNo", paymentFlow.getBusinessOrderNo());
+        result.put("payMethod", "alipay");
+        result.put("payStatus", 0);
+        result.put("formHtml", formHtml);
+        result.put("success", true);
+        return result;
     }
 
     private Appointment requireOwnedAppointment(String orderNo) {
@@ -488,6 +544,8 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
             appointment.setPayTime(LocalDateTime.now());
             appointment.setUpdateTime(LocalDateTime.now());
             appointmentMapper.updateById(appointment);
+            log.info("Appointment marked paid. orderNo={}, status={}, payTime={}",
+                    businessOrderNo, appointment.getStatus(), appointment.getPayTime());
         } else {
             Consult consult = consultMapper.selectOne(new LambdaQueryWrapper<Consult>().eq(Consult::getOrderNo, businessOrderNo));
             check(consult != null && Integer.valueOf(1).equals(consult.getStatus()), "咨询订单状态不可支付");
@@ -495,6 +553,8 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
             consult.setPayTime(LocalDateTime.now());
             consult.setUpdateTime(LocalDateTime.now());
             consultMapper.updateById(consult);
+            log.info("Consult marked paid. orderNo={}, status={}, payTime={}",
+                    businessOrderNo, consult.getStatus(), consult.getPayTime());
         }
     }
 
@@ -522,6 +582,10 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
             return 2;
         }
         throw new ApiException(StatusCode.BAD_REQUEST, "支付方式不支持");
+    }
+
+    private boolean isWechat(Integer payMethod) {
+        return Integer.valueOf(1).equals(payMethod);
     }
 
     private String paymentMethodName(Integer payMethod) {

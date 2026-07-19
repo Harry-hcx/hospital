@@ -75,7 +75,7 @@ class UserCenterApiTest extends BaseApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").isNumber());
+                .andExpect(jsonPath("$.data.id").isString());
     }
 
     @Test
@@ -109,7 +109,7 @@ class UserCenterApiTest extends BaseApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").isNumber());
+                .andExpect(jsonPath("$.data.id").isString());
     }
 
     @Test
@@ -134,6 +134,36 @@ class UserCenterApiTest extends BaseApiTest {
     @Test
     void shouldDeleteFamilyMember() throws Exception {
         mockMvc.perform(delete("/api/family-members/2").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    void shouldUseStringIdForLargeFamilyMemberId() throws Exception {
+        long largeId = 2069353628308467714L;
+        jdbcTemplate.update("UPDATE t_family_member SET id = ? WHERE id = ?", largeId, 1L);
+
+        Map<String, Object> request = new HashMap<String, Object>();
+        request.put("name", "张三-大整数更新");
+        request.put("phone", "13800138000");
+        request.put("relation", "本人");
+        request.put("gender", 1);
+        request.put("birthday", "1990-01-01");
+        request.put("idCard", "110101199001010011");
+        request.put("isDefault", 1);
+
+        mockMvc.perform(get("/api/family-members").header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(String.valueOf(largeId)));
+
+        mockMvc.perform(put("/api/family-members/{id}", String.valueOf(largeId))
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(delete("/api/family-members/{id}", String.valueOf(largeId)).header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }

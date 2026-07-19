@@ -130,7 +130,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         familyMember.setUpdateTime(LocalDateTime.now());
         familyMemberMapper.insert(familyMember);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("id", familyMember.getId());
+        result.put("id", String.valueOf(familyMember.getId()));
         return result;
     }
 
@@ -392,7 +392,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
 
     private Map<String, Object> familyMemberMap(FamilyMember item) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("id", item.getId());
+        result.put("id", String.valueOf(item.getId()));
         result.put("name", item.getName());
         result.put("phone", item.getPhone());
         result.put("relation", item.getRelation());

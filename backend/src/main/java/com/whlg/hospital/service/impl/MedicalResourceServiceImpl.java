@@ -31,10 +31,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -317,7 +319,7 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
     public PageResult<Map<String, Object>> listArticles(Integer page, Integer pageSize, Long departmentId, String keyword) {
         Page<Article> articles = articleMapper.selectPage(new Page<Article>(safePage(page), safePageSize(pageSize)), new LambdaQueryWrapper<Article>()
                         .eq(Article::getStatus, 1)
-                        .eq(departmentId != null, Article::getDepartmentId, departmentId)
+                        .in(departmentId != null, Article::getDepartmentId, departmentScopeIds(departmentId))
                         .and(normalize(keyword) != null, wrapper -> wrapper.like(Article::getTitle, normalize(keyword))
                                 .or().like(Article::getSummary, normalize(keyword)).or().like(Article::getContent, normalize(keyword)))
                         .orderByDesc(Article::getPublishTime));
@@ -424,19 +426,34 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
     }
 
     private List<Long> departmentScopeIds(Long departmentId) {
+        if (departmentId == null) {
+            return Collections.emptyList();
+        }
         Department department = departmentMapper.selectOne(new LambdaQueryWrapper<Department>()
                 .eq(Department::getId, departmentId).eq(Department::getStatus, 1));
         if (department == null) {
             return Collections.singletonList(departmentId);
         }
-        if (!Long.valueOf(0L).equals(department.getParentId())) {
+        Long parentId = department.getParentId();
+        if (parentId != null && !Long.valueOf(0L).equals(parentId)) {
             return Collections.singletonList(departmentId);
         }
-        List<Long> ids = departmentMapper.selectList(new LambdaQueryWrapper<Department>()
-                        .eq(Department::getParentId, departmentId).eq(Department::getStatus, 1))
-                .stream().map(Department::getId).collect(Collectors.toList());
-        ids.add(departmentId);
-        return ids;
+        Map<Long, List<Long>> childrenByParent = departmentMapper.selectList(baseDepartmentQuery())
+                .stream()
+                .filter(item -> item.getParentId() != null)
+                .collect(Collectors.groupingBy(Department::getParentId,
+                        Collectors.mapping(Department::getId, Collectors.toList())));
+        ArrayDeque<Long> queue = new ArrayDeque<Long>();
+        LinkedHashSet<Long> ids = new LinkedHashSet<Long>();
+        queue.add(departmentId);
+        while (!queue.isEmpty()) {
+            Long currentId = queue.removeFirst();
+            if (!ids.add(currentId)) {
+                continue;
+            }
+            queue.addAll(childrenByParent.getOrDefault(currentId, Collections.emptyList()));
+        }
+        return new ArrayList<Long>(ids);
     }
 
     private <T, R> PageResult<R> mapPage(Page<T> page, java.util.function.Function<T, R> mapper) {

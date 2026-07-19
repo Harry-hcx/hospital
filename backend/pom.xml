@@ -23,6 +23,7 @@
         <lombok.version>1.18.32</lombok.version>
         <aliyun.dysmsapi.version>3.1.0</aliyun.dysmsapi.version>
         <gson.version>2.10.1</gson.version>
+        <alipay.sdk.version>4.40.461.ALL</alipay.sdk.version>
     </properties>
 
     <dependencies>
@@ -77,6 +78,12 @@
             <groupId>com.alibaba</groupId>
             <artifactId>druid-spring-boot-starter</artifactId>
             <version>${druid.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alipay.sdk</groupId>
+            <artifactId>alipay-sdk-java</artifactId>
+            <version>${alipay.sdk.version}</version>
         </dependency>
 
         <dependency>

@@ -32,6 +32,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             "/api/search/global",
             "/api/health",
             "/api/payments/callback",
+            "/api/payments/alipay/notify",
+            "/api/payments/alipay/return",
             "/api/docs"
     ));
 
