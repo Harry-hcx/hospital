@@ -59,12 +59,17 @@ const loadError = ref('')
 onMounted(async () => {
   try {
     const res = await getProfile()
-    const d = res?.data || {}
+    const d = unwrapResponseData(res) || {}
     if (d) Object.assign(form.value, d)
   } catch (e) { console.error('加载个人信息失败', e) }
 })
 
 async function handleSave() {
+  const validationMessage = validateProfileForm()
+  if (validationMessage) {
+    alert(validationMessage)
+    return
+  }
   saving.value = true
   try {
     await updateProfile({ ...form.value, gender: form.value.gender === 0 ? null : Number(form.value.gender) })
@@ -73,6 +78,27 @@ async function handleSave() {
     console.error('保存失败', e)
     alert('保存失败')
   } finally { saving.value = false }
+}
+
+function validateProfileForm() {
+  const realName = form.value.realName?.trim()
+  const email = form.value.email?.trim()
+  const avatar = form.value.avatar?.trim()
+  if (realName && !/^[\u4e00-\u9fa5A-Za-z·]{2,20}$/.test(realName)) return '姓名需为2-20位中文或英文'
+  if (![0, 1, 2, null, undefined].includes(form.value.gender)) return '请选择正确的性别'
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '请输入正确的邮箱'
+  if (form.value.birthday) {
+    const birthday = new Date(form.value.birthday)
+    const today = new Date()
+    const minDate = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate())
+    if (Number.isNaN(birthday.getTime()) || birthday > today || birthday < minDate) return '生日不合法'
+  }
+  if (avatar && avatar.length > 255) return '头像地址过长'
+  return ''
+}
+
+function unwrapResponseData(res) {
+  return res?.data?.data ?? res?.data ?? res
 }
 </script>
 

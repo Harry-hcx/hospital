@@ -115,11 +115,8 @@ async function handleSendCaptcha() {
 }
 
 async function handleRegister() {
-  if (!form.username.trim()) return alert('请输入用户名')
-  if (!isValidPhone(form.phone)) return alert('请输入正确的手机号')
-  if (!form.captcha.trim()) return alert('请输入验证码')
-  if (form.password.length < 6) return alert('密码至少6位')
-  if (!form.gender) return alert('请选择性别')
+  const validationMessage = validateRegisterForm()
+  if (validationMessage) return alert(validationMessage)
 
   loading.value = true
   try {
@@ -138,6 +135,20 @@ async function handleRegister() {
   } finally {
     loading.value = false
   }
+}
+
+function validateRegisterForm() {
+  const username = form.username.trim()
+  const realName = form.realName.trim()
+  const email = form.email.trim()
+  if (!/^[A-Za-z0-9_\u4e00-\u9fa5]{3,20}$/.test(username)) return '用户名需为3-20位中文、英文、数字或下划线'
+  if (!isValidPhone(form.phone)) return '请输入正确的手机号'
+  if (!/^\d{6}$/.test(form.captcha.trim())) return '请输入6位数字验证码'
+  if (!/^(?=.*[A-Za-z])(?=.*\d).{6,20}$/.test(form.password)) return '密码需为6-20位，并同时包含字母和数字'
+  if (realName && !/^[\u4e00-\u9fa5A-Za-z·]{2,20}$/.test(realName)) return '真实姓名需为2-20位中文或英文'
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '请输入正确的邮箱'
+  if (![1, 2].includes(Number(form.gender))) return '请选择性别'
+  return ''
 }
 
 onBeforeUnmount(() => {

@@ -92,9 +92,9 @@ onMounted(async () => {
         getDoctorSchedules(doctorId, { days: 7 }),
         getFamilyMembers()
       ])
-      doctor.value = dRes?.data || {}
-      schedules.value = sRes?.data || []
-      members.value = mRes?.data || []
+      doctor.value = unwrapResponseData(dRes) || {}
+      schedules.value = unwrapResponseData(sRes) || []
+      members.value = unwrapResponseData(mRes) || []
     } catch (e) { console.error('加载预约信息失败', e) }
   }
 })
@@ -105,17 +105,26 @@ async function handleSubmit() {
   if (!form.value.familyMemberId) { alert('请选择就诊人'); return }
   const selectedSchedule = schedules.value.find((schedule) => Number(schedule.id) === Number(form.value.scheduleId))
   if (!selectedSchedule) { alert('所选排班不存在，请重新选择'); return }
+  const selectedMember = members.value.find((member) => Number(member.id) === Number(form.value.familyMemberId))
+  if (!selectedMember) { alert('所选就诊人不存在，请重新选择'); return }
   submitting.value = true
   try {
     const res = await createAppointment({
       doctorId: Number(doctor.value.id),
       hospitalId: Number(doctor.value.hospitalId),
-      patientId: Number(form.value.familyMemberId),
+      patientId: Number(selectedMember.id),
+      familyMemberId: Number(selectedMember.id),
+      patientName: selectedMember.name,
+      patientPhone: selectedMember.phone,
+      patientIdCard: selectedMember.idCard,
+      patientGender: selectedMember.gender,
+      patientBirthday: selectedMember.birthday,
+      patientRelation: selectedMember.relation,
       appointmentDate: selectedSchedule.date,
       appointmentTime: selectedSchedule.timeSlot,
       diseaseDesc: form.value.diseaseDesc
     })
-    const d = res?.data || {}
+    const d = unwrapResponseData(res) || {}
     const orderNo = d.orderNo || d.id
     if (!orderNo) { alert('预约创建成功但未返回订单号'); return }
     router.push(`/reservation/pay/${orderNo}`)
@@ -123,6 +132,10 @@ async function handleSubmit() {
     console.error('预约失败', e)
     alert('预约失败，请重试')
   } finally { submitting.value = false }
+}
+
+function unwrapResponseData(res) {
+  return res?.data?.data ?? res?.data ?? res
 }
 </script>
 

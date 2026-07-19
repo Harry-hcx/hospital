@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.Period;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Arrays;
@@ -97,12 +98,19 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     public void updateProfile(UpdateProfileRequest request) {
         check(request != null, "请求参数不能为空");
         check(request.getBirthday() == null || !request.getBirthday().isAfter(LocalDate.now()), "生日不能晚于今天");
+        check(request.getBirthday() == null || request.getBirthday().isAfter(LocalDate.now().minusYears(120)), "生日不合法");
+        check(request.getRealName() == null || request.getRealName().trim().isEmpty()
+                || request.getRealName().trim().matches("[\\u4e00-\\u9fa5A-Za-z·]{2,20}"), "姓名格式不正确");
+        check(request.getGender() == null || request.getGender() == 1 || request.getGender() == 2, "性别不正确");
+        check(request.getEmail() == null || request.getEmail().trim().isEmpty()
+                || request.getEmail().trim().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"), "邮箱格式不正确");
+        check(request.getAvatar() == null || request.getAvatar().trim().length() <= 255, "头像地址过长");
         User user = userMapper.selectById(requireUserId());
-        user.setRealName(request.getRealName());
+        user.setRealName(request.getRealName() == null ? null : request.getRealName().trim());
         user.setGender(request.getGender());
         user.setBirthday(request.getBirthday());
-        user.setEmail(request.getEmail());
-        user.setAvatar(request.getAvatar());
+        user.setEmail(request.getEmail() == null || request.getEmail().trim().isEmpty() ? null : request.getEmail().trim());
+        user.setAvatar(request.getAvatar() == null ? null : request.getAvatar().trim());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
     }
@@ -370,16 +378,26 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     }
 
     private void fillFamilyMember(FamilyMember familyMember, FamilyMemberRequest request) {
-        familyMember.setName(request.getName());
-        familyMember.setPhone(request.getPhone());
-        familyMember.setRelation(request.getRelation());
+        familyMember.setName(request.getName().trim());
+        familyMember.setPhone(request.getPhone().trim());
+        familyMember.setRelation(request.getRelation().trim());
         familyMember.setGender(request.getGender());
         familyMember.setBirthday(request.getBirthday());
-        familyMember.setIdCard(request.getIdCard());
-        familyMember.setIsDefault(request.getIsDefault());
+        familyMember.setIdCard(request.getIdCard() == null ? null : request.getIdCard().trim());
+        familyMember.setIsDefault(request.getIsDefault() == null ? 0 : request.getIsDefault());
     }
 
     private void validateFamilyMember(FamilyMemberRequest request) {
+        check(request != null, "就诊人信息不能为空");
+        check(request.getName() != null && request.getName().trim().matches("[\\u4e00-\\u9fa5A-Za-z·]{2,20}"), "就诊人姓名格式不正确");
+        check(request.getGender() != null && (request.getGender() == 1 || request.getGender() == 2), "性别不正确");
+        check(request.getBirthday() != null && !request.getBirthday().isAfter(LocalDate.now())
+                && request.getBirthday().isAfter(LocalDate.now().minusYears(120)), "生日不合法");
+        check(request.getPhone() != null && request.getPhone().trim().matches("^1\\d{10}$"), "手机号格式不正确");
+        check(request.getRelation() != null && !request.getRelation().trim().isEmpty()
+                && request.getRelation().trim().length() <= 10, "关系不能为空");
+        check(request.getIdCard() == null || request.getIdCard().trim().isEmpty()
+                || request.getIdCard().trim().matches("^[1-9]\\d{5}(18|19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]$"), "身份证号格式不正确");
         check(request != null && request.getName() != null && !request.getName().trim().isEmpty(), "就诊人姓名不能为空");
         check(request.getBirthday() == null || !request.getBirthday().isAfter(LocalDate.now()), "生日不能晚于今天");
         check(request.getIsDefault() == null || request.getIsDefault() == 0 || request.getIsDefault() == 1, "默认就诊人标记不正确");
@@ -398,6 +416,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         result.put("relation", item.getRelation());
         result.put("gender", item.getGender());
         result.put("birthday", item.getBirthday());
+        result.put("age", item.getBirthday() == null ? null : Period.between(item.getBirthday(), LocalDate.now()).getYears());
         result.put("idCard", item.getIdCard());
         result.put("isDefault", item.getIsDefault());
         return result;

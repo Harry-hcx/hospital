@@ -79,12 +79,13 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     @Override
     @Transactional
     public Map<String, Object> createAppointment(CreateAppointmentRequest request) {
+        Long patientId = request == null ? null : request.resolvePatientId();
         check(request != null && request.getDoctorId() != null && request.getHospitalId() != null
-                && request.getPatientId() != null && request.getAppointmentDate() != null
+                && patientId != null && request.getAppointmentDate() != null
                 && request.getAppointmentTime() != null && !request.getAppointmentTime().trim().isEmpty(), "预约参数不能为空");
         Long userId = requireUserId();
         Doctor doctor = doctorMapper.selectById(request.getDoctorId());
-        FamilyMember familyMember = familyMemberMapper.selectById(request.getPatientId());
+        FamilyMember familyMember = resolveFamilyMember(request, patientId, userId);
         check(doctor != null && Integer.valueOf(1).equals(doctor.getStatus()), "医生不可预约");
         check(request.getHospitalId().equals(doctor.getHospitalId()), "医生不属于所选医院");
         check(familyMember != null && userId.equals(familyMember.getUserId()), "就诊人不存在");
@@ -590,6 +591,48 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
 
     private String paymentMethodName(Integer payMethod) {
         return Integer.valueOf(1).equals(payMethod) ? "wechat" : "alipay";
+    }
+
+    private FamilyMember resolveFamilyMember(CreateAppointmentRequest request, Long patientId, Long userId) {
+        FamilyMember familyMember = familyMemberMapper.selectById(patientId);
+        if (familyMember != null && userId.equals(familyMember.getUserId())) {
+            return familyMember;
+        }
+
+        LambdaQueryWrapper<FamilyMember> query = new LambdaQueryWrapper<FamilyMember>()
+                .eq(FamilyMember::getUserId, userId);
+        if (notBlank(request.getPatientPhone())) {
+            query.eq(FamilyMember::getPhone, request.getPatientPhone().trim());
+        } else if (notBlank(request.getPatientIdCard())) {
+            query.eq(FamilyMember::getIdCard, request.getPatientIdCard().trim());
+        } else if (notBlank(request.getPatientName())) {
+            query.eq(FamilyMember::getName, request.getPatientName().trim());
+        } else {
+            return null;
+        }
+
+        familyMember = familyMemberMapper.selectOne(query);
+        if (familyMember != null) {
+            return familyMember;
+        }
+
+        FamilyMember created = new FamilyMember();
+        created.setUserId(userId);
+        created.setName(request.getPatientName());
+        created.setPhone(request.getPatientPhone());
+        created.setIdCard(request.getPatientIdCard());
+        created.setGender(request.getPatientGender());
+        created.setBirthday(request.getPatientBirthday());
+        created.setRelation(notBlank(request.getPatientRelation()) ? request.getPatientRelation() : "本人");
+        created.setIsDefault(0);
+        created.setCreateTime(LocalDateTime.now());
+        created.setUpdateTime(LocalDateTime.now());
+        familyMemberMapper.insert(created);
+        return created;
+    }
+
+    private boolean notBlank(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private Schedule resolveSchedule(CreateAppointmentRequest request, Doctor doctor) {

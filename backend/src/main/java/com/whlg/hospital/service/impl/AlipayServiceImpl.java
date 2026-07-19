@@ -84,10 +84,13 @@ public class AlipayServiceImpl implements AlipayService {
     public String queryTradeStatus(String businessOrderNo, String tradeNo) {
         try {
             AlipayTradeQueryRequest request = new AlipayTradeQueryRequest();
-            request.setBizContent("{"
-                    + "\"out_trade_no\":\"" + escapeJson(businessOrderNo) + "\","
-                    + "\"trade_no\":\"" + escapeJson(tradeNo) + "\""
-                    + "}");
+            StringBuilder bizContent = new StringBuilder("{")
+                    .append("\"out_trade_no\":\"").append(escapeJson(businessOrderNo)).append("\"");
+            if (tradeNo != null && !tradeNo.trim().isEmpty()) {
+                bizContent.append(",\"trade_no\":\"").append(escapeJson(tradeNo.trim())).append("\"");
+            }
+            bizContent.append("}");
+            request.setBizContent(bizContent.toString());
             AlipayTradeQueryResponse response = createClient().execute(request);
             String tradeStatus = response == null ? null : response.getTradeStatus();
             log.info("Alipay trade queried. orderNo={}, tradeNo={}, tradeStatus={}, subCode={}, bodyPresent={}",

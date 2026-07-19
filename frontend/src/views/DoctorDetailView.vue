@@ -82,16 +82,18 @@ onMounted(async () => {
   const id = route.params.id
   try {
     const res = await getDoctorDetail(id)
-    doctor.value = res.data.data || res.data
+    const detail = unwrapResponseData(res) || {}
+    doctor.value = detail
+    schedules.value = detail.schedules || []
   } catch (e) { console.error('加载医生详情失败', e) }
   try {
     const res = await getDoctorSchedules(id, { days: 7 })
-    schedules.value = (res.data.data || res.data) || []
+    schedules.value = unwrapResponseData(res) || []
   } catch (e) { /* ignore */ }
   if (localStorage.getItem('token')) {
     try {
       const res = await getMyFollows({ type: 2, page: 1, pageSize: 1000 })
-      const d = res.data.data || res.data
+      const d = unwrapResponseData(res) || {}
       isFollowed.value = (d.list || []).some(item => Number(item.followId) === Number(id))
     } catch (e) { /* ignore */ }
   }
@@ -101,13 +103,17 @@ onMounted(async () => {
 async function fetchReviews() {
   try {
     const res = await getDoctorReviews(route.params.id, { page: reviewPage.value, pageSize: reviewPageSize.value })
-    const d = res.data.data || res.data
-    reviews.value = d.list || []
+    const d = unwrapResponseData(res) || {}
+    reviews.value = d.list || d.records || []
     reviewTotal.value = d.total || 0
   } catch (e) { console.error('加载评价失败', e) }
 }
 
 function handleReviewPage(p) { reviewPage.value = p; fetchReviews() }
+
+function unwrapResponseData(res) {
+  return res?.data?.data ?? res?.data ?? res
+}
 
 async function toggleFollow() {
   try {

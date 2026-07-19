@@ -113,7 +113,7 @@ public class AlipayController {
             }
 
             if (isTradePaid(confirmedTradeStatus)) {
-                orderService.paymentCallback(buildSuccessCallback(params));
+                orderService.paymentCallback(buildSuccessCallback(params, orderNo, tradeNo));
                 String successUrl = buildSuccessUrl(orderNo);
                 log.info("Alipay return callback processed as paid. orderNo={}, tradeNo={}, tradeStatus={}, redirectUrl={}",
                         orderNo, tradeNo, confirmedTradeStatus, successUrl);
@@ -132,11 +132,28 @@ public class AlipayController {
     }
 
     private PaymentCallbackRequest buildSuccessCallback(Map<String, String> params) {
+        return buildSuccessCallback(params, params.get("out_trade_no"), params.get("trade_no"));
+    }
+
+    private PaymentCallbackRequest buildSuccessCallback(Map<String, String> params, String orderNo, String tradeNo) {
         PaymentCallbackRequest request = new PaymentCallbackRequest();
-        request.setPaymentNo(params.get("out_trade_no"));
-        request.setTradeNo(params.get("trade_no"));
+        String resolvedOrderNo = firstNotBlank(orderNo, params.get("out_trade_no"));
+        request.setPaymentNo(resolvedOrderNo);
+        request.setTradeNo(firstNotBlank(tradeNo, params.get("trade_no"), resolvedOrderNo));
         request.setPayStatus(1);
         return request;
+    }
+
+    private String firstNotBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private Map<String, String> extractParams(HttpServletRequest request) {

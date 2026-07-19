@@ -25,7 +25,7 @@
           <h3>科室列表</h3>
           <ul class="dept-list">
             <li v-for="d in departments" :key="d.id" :class="{ active: activeDeptId === d.id }" @click="activeDeptId = d.id">
-              {{ d.name }}
+              {{ d.displayName || d.name }}
             </li>
           </ul>
         </div>
@@ -85,10 +85,10 @@ onMounted(async () => {
       getHospitalDetail(id),
       getHospitalDepartments(id)
     ])
-    const hd = hRes.data.data || hRes.data
+    const hd = unwrapResponseData(hRes) || {}
     hospital.value = hd
-    const dd = dRes.data.data || dRes.data
-    departments.value = dd || []
+    const dd = unwrapResponseData(dRes)
+    departments.value = flattenDepartments((dd && dd.length ? dd : hd.departments) || [])
     if (departments.value.length) activeDeptId.value = departments.value[0].id
     if (localStorage.getItem('token')) {
       const fRes = await getMyFollows({ type: 1, page: 1, pageSize: 1000 })
@@ -114,8 +114,8 @@ async function fetchDoctors() {
       pageSize: doctorPageSize.value,
       departmentId: activeDeptId.value || undefined,
     })
-    const d = res.data.data || res.data
-    doctors.value = d.list || []
+    const d = unwrapResponseData(res) || {}
+    doctors.value = d.list || d.records || []
     doctorTotal.value = d.total || 0
   } catch (e) {
     console.error('加载医生列表失败', e)
@@ -141,6 +141,21 @@ async function toggleFollow() {
   } catch (e) {
     console.error('关注操作失败', e)
   }
+}
+
+function unwrapResponseData(res) {
+  return res?.data?.data ?? res?.data ?? res
+}
+
+function flattenDepartments(items, level = 0) {
+  if (!Array.isArray(items)) return []
+  return items.flatMap((item) => {
+    const current = {
+      ...item,
+      displayName: `${'  '.repeat(level)}${item.name}`,
+    }
+    return [current, ...flattenDepartments(item.children, level + 1)]
+  })
 }
 </script>
 

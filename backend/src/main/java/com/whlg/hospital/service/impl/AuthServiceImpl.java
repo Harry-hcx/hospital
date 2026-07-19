@@ -98,12 +98,14 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
             throw new ApiException(StatusCode.BAD_REQUEST, "验证码发送过于频繁，请稍后再试");
         }
 
-        String code = AliyunSmsUtil.generateVerificationCode();
+        String code;
         try {
-            String templateParam = String.format("{\"code\":\"%s\",\"min\":\"5\"}", code);
-            String providerResponse = aliyunSmsUtil.sendSmsVerifyCode(phone, smsSignName, smsTemplateCode, templateParam, "captcha-" + phone);
+            String templateParam = "{\"code\":\"##code##\",\"min\":\"5\"}";
+            AliyunSmsUtil.SmsSendResult smsResult =
+                    aliyunSmsUtil.sendSmsVerifyCode(phone, smsSignName, smsTemplateCode, templateParam, "captcha-" + phone);
+            code = smsResult.getVerifyCode();
             stringRedisTemplate.opsForValue().set(captchaCodeKey(phone), code, CAPTCHA_EXPIRE_SECONDS, TimeUnit.SECONDS);
-            log.info("Captcha sent successfully to phone={}, providerResponse={}", phone, providerResponse);
+            log.info("Captcha sent successfully to phone={}, providerResponse={}", phone, smsResult.getProviderResponse());
         } catch (Exception ex) {
             stringRedisTemplate.delete(cooldownKey);
             log.error("Failed to send captcha to phone={}: {}", phone, ex.getMessage(), ex);
@@ -123,8 +125,15 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
         String phone = normalizePhone(request.getPhone());
         String username = request.getUsername() == null ? null : request.getUsername().trim();
         check(username != null && !username.isEmpty(), "用户名不能为空");
+        check(username.matches("[A-Za-z0-9_\\u4e00-\\u9fa5]{3,20}"), "用户名需为3-20位中文、英文、数字或下划线");
         check(PHONE_PATTERN.matcher(phone).matches(), "手机号格式不正确");
         check(request.getPassword() != null && !request.getPassword().trim().isEmpty(), "密码不能为空");
+        check(request.getPassword().matches("^(?=.*[A-Za-z])(?=.*\\d).{6,20}$"), "密码需为6-20位，并同时包含字母和数字");
+        check(request.getRealName() == null || request.getRealName().trim().isEmpty()
+                || request.getRealName().trim().matches("[\\u4e00-\\u9fa5A-Za-z·]{2,20}"), "真实姓名格式不正确");
+        check(request.getEmail() == null || request.getEmail().trim().isEmpty()
+                || request.getEmail().trim().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"), "邮箱格式不正确");
+        check(request.getGender() == null || request.getGender() == 1 || request.getGender() == 2, "性别不正确");
 
         check(userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getPhone, phone)) == 0, "手机号已注册");
         check(userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, username)) == 0, "用户名已存在");
@@ -136,7 +145,7 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
         user.setRealName(request.getRealName() == null || request.getRealName().trim().isEmpty()
                 ? "用户" + phone.substring(phone.length() - 4)
                 : request.getRealName().trim());
-        user.setEmail(request.getEmail());
+        user.setEmail(request.getEmail() == null || request.getEmail().trim().isEmpty() ? null : request.getEmail().trim());
         user.setGender(request.getGender());
         user.setAvatar("/avatar/default.png");
         user.setStatus(1);

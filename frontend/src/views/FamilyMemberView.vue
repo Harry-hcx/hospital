@@ -5,7 +5,7 @@
       <AppSidebar />
       <div class="main">
         <h2>就诊人管理</h2>
-        <button class="btn-primary btn-add" @click="showForm = true">+ 添加就诊人</button>
+        <button class="btn-primary btn-add" @click="openCreateForm">+ 添加就诊人</button>
 
         <div class="member-list">
           <div class="member-card" v-for="m in members" :key="m.id">
@@ -22,7 +22,7 @@
         </div>
         <div class="empty" v-if="members.length === 0">暂无就诊人</div>
 
-        <div class="modal" v-if="showForm" @click.self="showForm = false">
+        <div class="modal" v-if="showForm">
           <div class="modal-content">
             <h3>{{ editingId ? '编辑' : '添加' }}就诊人</h3>
             <div class="form-group"><label>姓名</label><input v-model="form.name" /></div>
@@ -30,9 +30,9 @@
             <div class="form-group"><label>生日</label><input type="date" v-model="form.birthday" /></div>
             <div class="form-group"><label>手机号</label><input v-model="form.phone" /></div>
             <div class="form-group"><label>身份证</label><input v-model="form.idCard" /></div>
-            <div class="form-group"><label>关系</label><select v-model="form.relation"><option value="本人">本人</option><option value="配偶">配偶</option><option value="子女">子女</option><option value="父母">父母</option></select></div>
+            <div class="form-group"><label>关系</label><select v-model="form.relation"><option v-for="relation in relationOptions" :key="relation" :value="relation">{{ relation }}</option></select></div>
             <div class="modal-actions">
-              <button @click="showForm = false">取消</button>
+              <button @click="closeForm">取消</button>
               <button class="btn-primary" @click="handleSave">保存</button>
             </div>
           </div>
@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
@@ -55,7 +55,13 @@ const showForm = ref(false)
 const editingId = ref(null)
 const loading = ref(false)
 const loadError = ref('')
-const form = ref({ name: '', gender: 1, birthday: '', phone: '', idCard: '', relation: '本人' })
+const defaultForm = () => ({ name: '', gender: 1, birthday: '', phone: '', idCard: '', relation: '本人' })
+const form = ref(defaultForm())
+const baseRelations = ['本人', '配偶', '子女', '父母']
+const relationOptions = computed(() => {
+  const relation = form.value.relation
+  return relation && !baseRelations.includes(relation) ? [...baseRelations, relation] : baseRelations
+})
 
 onMounted(fetchMembers)
 
@@ -63,27 +69,50 @@ async function fetchMembers() {
   loading.value = true
   try {
     const res = await getFamilyMembers()
-    members.value = (res.data.data || res.data) || []
+    const data = unwrapResponseData(res) || []
+    members.value = data.map(member => ({ ...member, age: memberAge(member) }))
   } catch (e) { loadError.value = '加载就诊人失败，请稍后重试'; console.error('加载就诊人失败', e) }
   finally { loading.value = false }
 }
 
-function editMember(m) {
-  editingId.value = m.id
-  form.value = { ...m }
+function openCreateForm() {
+  editingId.value = null
+  form.value = defaultForm()
   showForm.value = true
 }
 
+function editMember(m) {
+  editingId.value = m.id
+  form.value = {
+    name: m.name || '',
+    gender: Number(m.gender) === 2 ? 2 : 1,
+    birthday: m.birthday || '',
+    phone: m.phone || '',
+    idCard: m.idCard || '',
+    relation: m.relation || '本人',
+  }
+  showForm.value = true
+}
+
+function closeForm() {
+  showForm.value = false
+  editingId.value = null
+  form.value = defaultForm()
+}
+
 async function handleSave() {
+  const validationMessage = validateMemberForm()
+  if (validationMessage) {
+    alert(validationMessage)
+    return
+  }
   try {
     if (editingId.value) {
       await updateFamilyMember(editingId.value, { ...form.value, gender: Number(form.value.gender) })
     } else {
       await createFamilyMember({ ...form.value, gender: Number(form.value.gender) })
     }
-    showForm.value = false
-    editingId.value = null
-    form.value = { name: '', gender: 1, birthday: '', phone: '', idCard: '', relation: '本人' }
+    closeForm()
     await fetchMembers()
   } catch (e) { console.error('保存失败', e); alert('保存失败') }
 }
@@ -94,6 +123,45 @@ async function handleDelete(id) {
     await deleteFamilyMember(id)
     await fetchMembers()
   } catch (e) { console.error('删除失败', e) }
+}
+function unwrapResponseData(res) {
+  return res?.data?.data ?? res?.data ?? res
+}
+
+function memberAge(member) {
+  if (member.age !== null && member.age !== undefined && member.age !== '') {
+    return String(member.age)
+  }
+  if (!member.birthday) return ''
+  const birthday = new Date(member.birthday)
+  if (Number.isNaN(birthday.getTime())) return ''
+  const today = new Date()
+  let age = today.getFullYear() - birthday.getFullYear()
+  const beforeBirthday =
+    today.getMonth() < birthday.getMonth()
+    || (today.getMonth() === birthday.getMonth() && today.getDate() < birthday.getDate())
+  if (beforeBirthday) age -= 1
+  return age >= 0 ? String(age) : ''
+}
+
+function validateMemberForm() {
+  const name = form.value.name?.trim()
+  const phone = form.value.phone?.trim()
+  const idCard = form.value.idCard?.trim()
+  const relation = form.value.relation?.trim()
+  if (!name || !/^[\u4e00-\u9fa5A-Za-z·]{2,20}$/.test(name)) return '请输入2-20位中文或英文姓名'
+  if (![1, 2].includes(Number(form.value.gender))) return '请选择正确的性别'
+  if (!form.value.birthday) return '请选择生日'
+  const birthday = new Date(form.value.birthday)
+  const today = new Date()
+  const minDate = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate())
+  if (Number.isNaN(birthday.getTime()) || birthday > today || birthday < minDate) return '生日不合法'
+  if (!/^1\d{10}$/.test(phone || '')) return '请输入正确的11位手机号'
+  if (idCard && !/^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[0-9Xx]$/.test(idCard)) {
+    return '请输入正确的身份证号'
+  }
+  if (!relation || relation.length > 10) return '请选择关系'
+  return ''
 }
 </script>
 

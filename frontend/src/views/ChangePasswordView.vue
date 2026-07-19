@@ -3,25 +3,27 @@
     <AppHeader />
     <div class="page-body">
       <AppSidebar />
-      <div class="main-content">
-        <h3>修改密码</h3>
-        <form @submit.prevent="handleSubmit" class="password-form">
-          <div class="form-group">
-            <label>原密码</label>
-            <input v-model="form.oldPassword" type="password" placeholder="请输入原密码" />
-          </div>
-          <div class="form-group">
-            <label>新密码</label>
-            <input v-model="form.newPassword" type="password" placeholder="6-20位新密码" />
-          </div>
-          <div class="form-group">
-            <label>确认新密码</label>
-            <input v-model="form.confirmPassword" type="password" placeholder="请再次输入新密码" />
-          </div>
-          <button type="submit" class="btn-primary" :disabled="loading">
-            {{ loading ? '提交中...' : '确认修改' }}
-          </button>
-        </form>
+      <div class="main">
+        <h2>修改密码</h2>
+        <div class="form-card">
+          <form @submit.prevent="handleSubmit" class="password-form">
+            <div class="form-group">
+              <label>原密码</label>
+              <input v-model="form.oldPassword" type="password" placeholder="请输入原密码" />
+            </div>
+            <div class="form-group">
+              <label>新密码</label>
+              <input v-model="form.newPassword" type="password" placeholder="6-20位新密码" />
+            </div>
+            <div class="form-group">
+              <label>确认新密码</label>
+              <input v-model="form.confirmPassword" type="password" placeholder="请再次输入新密码" />
+            </div>
+            <button type="submit" class="btn-primary" :disabled="loading">
+              {{ loading ? '提交中...' : '确认修改' }}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
     <AppFooter />
@@ -64,35 +66,11 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.change-password-page {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.page-body {
-  max-width: var(--max-width);
-  margin: 20px auto;
-  padding: 0 20px;
-  display: flex;
-  gap: 20px;
-  flex: 1;
-}
-
-.main-content {
-  flex: 1;
-  background: var(--bg-white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 30px;
-}
-
-.main-content h3 {
-  font-size: 18px;
-  margin-bottom: 24px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
+.change-password-page { min-height: 100vh; background: var(--bg); }
+.page-body { display: flex; gap: 24px; }
+.main { flex: 1; }
+.main h2 { font-size: 20px; margin-bottom: 20px; }
+.form-card { background: var(--bg-white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px; max-width: 600px; }
 
 .password-form {
   max-width: 400px;
@@ -114,4 +92,6 @@ async function handleSubmit() {
   padding: 10px 12px;
   font-size: 14px;
 }
+
+@media (max-width: 768px) { .page-body { flex-direction: column; } }
 </style>

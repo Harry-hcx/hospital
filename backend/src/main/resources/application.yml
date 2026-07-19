@@ -24,7 +24,7 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 aliyun:
   sms:
-    endpoint: ${ALIYUN_SMS_ENDPOINT:dysmsapi.aliyuncs.com}
+    endpoint: ${ALIYUN_SMS_ENDPOINT:dypnsapi.aliyuncs.com}
 auth:
   captcha-bypass:
     enabled: false

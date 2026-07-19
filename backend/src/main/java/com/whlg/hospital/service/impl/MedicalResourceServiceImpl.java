@@ -144,11 +144,24 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
             throw new ApiException(StatusCode.NOT_FOUND, "医院不存在");
         }
         List<Long> departmentIds = hospitalDepartmentMapper.selectList(new LambdaQueryWrapper<HospitalDepartment>().eq(HospitalDepartment::getHospitalId, hospitalId))
-                .stream().map(HospitalDepartment::getDepartmentId).collect(Collectors.toList());
+                .stream()
+                .map(HospitalDepartment::getDepartmentId)
+                .filter(id -> id != null)
+                .collect(Collectors.toList());
+        if (departmentIds.isEmpty()) {
+            departmentIds = doctorMapper.selectList(new LambdaQueryWrapper<Doctor>()
+                            .eq(Doctor::getHospitalId, hospitalId)
+                            .eq(Doctor::getStatus, 1))
+                    .stream()
+                    .map(Doctor::getDepartmentId)
+                    .filter(id -> id != null)
+                    .distinct()
+                    .collect(Collectors.toList());
+        }
         if (departmentIds.isEmpty()) {
             return Collections.emptyList();
         }
-        return buildDepartmentTree(departmentMapper.selectBatchIds(departmentIds));
+        return buildDepartmentTree(departmentMapper.selectBatchIds(expandDepartmentIdsWithParents(departmentIds)));
     }
 
     @Override
@@ -238,6 +251,8 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         begin = begin.isBefore(today) ? today : begin;
         int dayCount = days == null || days < 1 ? 7 : Math.min(days, 31);
         LocalDate end = begin.plusDays(dayCount - 1L);
+        refreshDemoSchedulesIfExpired(doctor, begin);
+        ensureDoctorSchedules(doctor, begin);
         return scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
                         .eq(Schedule::getDoctorId, doctorId)
                         .eq(Schedule::getStatus, 1)
@@ -263,6 +278,75 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
                             && !item.getScheduleDate().isBefore(LocalDate.now()));
                     return result;
                 }).collect(Collectors.toList());
+    }
+
+    private void refreshDemoSchedulesIfExpired(Doctor doctor, LocalDate begin) {
+        List<Schedule> schedules = scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
+                .eq(Schedule::getDoctorId, doctor.getId())
+                .eq(Schedule::getStatus, 1)
+                .gt(Schedule::getRemainCount, 0)
+                .eq(Schedule::getHospitalId, doctor.getHospitalId())
+                .eq(Schedule::getDepartmentId, doctor.getDepartmentId())
+                .orderByAsc(Schedule::getScheduleDate)
+                .orderByAsc(Schedule::getTimeSlot));
+        if (schedules.isEmpty()) {
+            return;
+        }
+        boolean hasAvailableSchedule = schedules.stream()
+                .anyMatch(item -> item.getScheduleDate() != null && !item.getScheduleDate().isBefore(begin));
+        if (hasAvailableSchedule) {
+            return;
+        }
+        Map<LocalDate, LocalDate> shiftedDates = new LinkedHashMap<LocalDate, LocalDate>();
+        for (Schedule schedule : schedules) {
+            LocalDate scheduleDate = schedule.getScheduleDate();
+            if (scheduleDate == null) {
+                continue;
+            }
+            LocalDate shiftedDate = shiftedDates.computeIfAbsent(scheduleDate,
+                    ignored -> begin.plusDays(shiftedDates.size() + 1L));
+            schedule.setScheduleDate(shiftedDate);
+            scheduleMapper.updateById(schedule);
+        }
+    }
+
+    private void ensureDoctorSchedules(Doctor doctor, LocalDate begin) {
+        Long availableCount = scheduleMapper.selectCount(new LambdaQueryWrapper<Schedule>()
+                .eq(Schedule::getDoctorId, doctor.getId())
+                .eq(Schedule::getStatus, 1)
+                .gt(Schedule::getRemainCount, 0)
+                .eq(Schedule::getHospitalId, doctor.getHospitalId())
+                .eq(Schedule::getDepartmentId, doctor.getDepartmentId())
+                .ge(Schedule::getScheduleDate, begin));
+        if (availableCount != null && availableCount > 0) {
+            return;
+        }
+        String[] timeSlots = new String[] { "08:00-09:00", "09:00-10:00", "14:00-15:00" };
+        for (int day = 1; day <= 3; day++) {
+            LocalDate scheduleDate = begin.plusDays(day);
+            for (String timeSlot : timeSlots) {
+                Long existing = scheduleMapper.selectCount(new LambdaQueryWrapper<Schedule>()
+                        .eq(Schedule::getDoctorId, doctor.getId())
+                        .eq(Schedule::getHospitalId, doctor.getHospitalId())
+                        .eq(Schedule::getDepartmentId, doctor.getDepartmentId())
+                        .eq(Schedule::getScheduleDate, scheduleDate)
+                        .eq(Schedule::getTimeSlot, timeSlot));
+                if (existing != null && existing > 0) {
+                    continue;
+                }
+                Schedule schedule = new Schedule();
+                schedule.setDoctorId(doctor.getId());
+                schedule.setHospitalId(doctor.getHospitalId());
+                schedule.setDepartmentId(doctor.getDepartmentId());
+                schedule.setScheduleDate(scheduleDate);
+                schedule.setTimeSlot(timeSlot);
+                schedule.setTotalCount(20);
+                schedule.setRemainCount(20);
+                schedule.setStatus(1);
+                schedule.setCreateTime(java.time.LocalDateTime.now());
+                scheduleMapper.insert(schedule);
+            }
+        }
     }
 
     @Override
@@ -480,6 +564,21 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         return result;
     }
 
+    private List<Long> expandDepartmentIdsWithParents(List<Long> departmentIds) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<Long>(departmentIds);
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (Department department : departmentMapper.selectBatchIds(new ArrayList<Long>(ids))) {
+                Long parentId = department.getParentId();
+                if (parentId != null && !Long.valueOf(0L).equals(parentId) && ids.add(parentId)) {
+                    changed = true;
+                }
+            }
+        }
+        return new ArrayList<Long>(ids);
+    }
+
     private LambdaQueryWrapper<Department> baseDepartmentQuery() {
         return new LambdaQueryWrapper<Department>()
                 .eq(Department::getStatus, 1)
@@ -501,6 +600,8 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         result.put("id", disease.getId());
         result.put("name", disease.getName());
         result.put("alias", disease.getAlias());
+        result.put("description", disease.getDescription());
+        result.put("symptoms", disease.getSymptoms());
         result.put("location", disease.getLocation());
         result.put("departmentId", disease.getDepartmentId());
         result.put("followCount", disease.getFollowCount());
