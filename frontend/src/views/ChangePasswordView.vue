@@ -3,25 +3,27 @@
     <AppHeader />
     <div class="page-body">
       <AppSidebar />
-      <div class="main-content">
-        <h3>修改密码</h3>
-        <form @submit.prevent="handleSubmit" class="password-form">
-          <div class="form-group">
-            <label>原密码</label>
-            <input v-model="form.oldPassword" type="password" placeholder="请输入原密码" />
-          </div>
-          <div class="form-group">
-            <label>新密码</label>
-            <input v-model="form.newPassword" type="password" placeholder="6-20位新密码" />
-          </div>
-          <div class="form-group">
-            <label>确认新密码</label>
-            <input v-model="form.confirmPassword" type="password" placeholder="请再次输入新密码" />
-          </div>
-          <button type="submit" class="btn-primary" :disabled="loading">
-            {{ loading ? '提交中...' : '确认修改' }}
-          </button>
-        </form>
+      <div class="main">
+        <h2>修改密码</h2>
+        <div class="form-card">
+          <form @submit.prevent="handleSubmit" class="password-form">
+            <div class="form-group">
+              <label>原密码</label>
+              <input v-model="form.oldPassword" type="password" placeholder="请输入原密码" />
+            </div>
+            <div class="form-group">
+              <label>新密码</label>
+              <input v-model="form.newPassword" type="password" placeholder="6-20位新密码" />
+            </div>
+            <div class="form-group">
+              <label>确认新密码</label>
+              <input v-model="form.confirmPassword" type="password" placeholder="请再次输入新密码" />
+            </div>
+            <button type="submit" class="btn-primary" :disabled="loading">
+              {{ loading ? '提交中...' : '确认修改' }}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
     <AppFooter />
@@ -64,39 +66,14 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.change-password-page {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
+.change-password-page { min-height: 100vh; background: var(--bg); }
+.page-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; width: 100%; align-items: start; }
+.page-body :deep(.sidebar) { position: sticky; top: var(--header-height); left: 0; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding-top: 24px; }
+.main h2 { width: min(100%, 480px); font-size: 20px; margin-bottom: 20px; text-align: center; }
+.form-card { width: min(100%, 480px); background: var(--bg-white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px; }
 
-.page-body {
-  max-width: var(--max-width);
-  margin: 20px auto;
-  padding: 0 20px;
-  display: flex;
-  gap: 20px;
-  flex: 1;
-}
-
-.main-content {
-  flex: 1;
-  background: var(--bg-white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 30px;
-}
-
-.main-content h3 {
-  font-size: 18px;
-  margin-bottom: 24px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.password-form {
-  max-width: 400px;
-}
+.password-form { width: 100%; }
 
 .password-form .form-group {
   margin-bottom: 18px;
@@ -113,5 +90,12 @@ async function handleSubmit() {
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .page-body { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .page-body :deep(.sidebar) { position: static; }
+  .main { padding-top: 0; }
+  .main h2, .form-card { width: 100%; }
 }
 </style>

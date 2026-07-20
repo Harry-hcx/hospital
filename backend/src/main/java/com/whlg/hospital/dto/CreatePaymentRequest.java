@@ -6,8 +6,8 @@ public class CreatePaymentRequest {
 
     private String businessOrderNo;
     private String businessType;
-    private BigDecimal amount;
-    private Integer payType;
+    private String payMethod;
+    private BigDecimal actualAmount;
 
     public String getBusinessOrderNo() {
         return businessOrderNo;
@@ -25,19 +25,19 @@ public class CreatePaymentRequest {
         this.businessType = businessType;
     }
 
-    public BigDecimal getAmount() {
-        return amount;
+    public String getPayMethod() {
+        return payMethod;
     }
 
-    public void setAmount(BigDecimal amount) {
-        this.amount = amount;
+    public void setPayMethod(String payMethod) {
+        this.payMethod = payMethod;
     }
 
-    public Integer getPayType() {
-        return payType;
+    public BigDecimal getActualAmount() {
+        return actualAmount;
     }
 
-    public void setPayType(Integer payType) {
-        this.payType = payType;
+    public void setActualAmount(BigDecimal actualAmount) {
+        this.actualAmount = actualAmount;
     }
 }

@@ -4,18 +4,18 @@ import java.time.LocalDate;
 
 public class UpdateProfileRequest {
 
-    private String name;
+    private String realName;
     private Integer gender;
     private LocalDate birthday;
     private String email;
     private String avatar;
 
-    public String getName() {
-        return name;
+    public String getRealName() {
+        return realName;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setRealName(String realName) {
+        this.realName = realName;
     }
 
     public Integer getGender() {

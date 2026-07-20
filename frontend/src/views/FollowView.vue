@@ -5,18 +5,13 @@
       <AppSidebar />
       <div class="main">
         <h2>我的关注</h2>
-        <div class="tabs">
-          <button v-for="t in tabs" :key="t.type" :class="{ active: activeType === t.type }" @click="switchTab(t.type)">{{ t.label }}</button>
-        </div>
         <div class="follow-list">
           <div class="follow-card" v-for="item in list" :key="item.id">
             <div class="follow-info">
               <h4>{{ item.name || item.title }}</h4>
-              <p v-if="activeType === 1">{{ item.level }}</p>
-              <p v-if="activeType === 2">{{ item.hospitalName }} · {{ item.departmentName }}</p>
-              <p v-if="activeType === 3">{{ item.departmentName }}</p>
+              <p>关注对象 ID：{{ item.followId }}</p>
             </div>
-            <button class="btn-unfollow" @click="handleUnfollow(item.id)">取消关注</button>
+            <button class="btn-unfollow" @click="handleUnfollow(item.followId)">取消关注</button>
           </div>
         </div>
         <div class="empty" v-if="list.length === 0">暂无关注</div>
@@ -28,7 +23,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
@@ -51,19 +46,28 @@ const tabs = [
 
 onMounted(fetchData)
 
+watch(
+  () => route.query.type,
+  (type) => {
+    activeType.value = Number(type) || 1
+    page.value = 1
+    fetchData()
+  }
+)
+
 async function fetchData() {
   try {
     const res = await getMyFollows({ type: activeType.value, page: page.value, pageSize: pageSize.value })
     const d = res.data.data || res.data
-    list.value = d.records || []
+    list.value = d.list || []
     total.value = d.total || 0
   } catch (e) { console.error('加载关注列表失败', e) }
 }
 
-function switchTab(type) { activeType.value = type; page.value = 1; fetchData() }
 function handlePage(p) { page.value = p; fetchData() }
 
 async function handleUnfollow(id) {
+  if (!id) return
   try {
     await deleteFollow(activeType.value, id)
     fetchData()
@@ -76,9 +80,6 @@ async function handleUnfollow(id) {
 .page-body { display: flex; gap: 24px; }
 .main { flex: 1; }
 .main h2 { font-size: 20px; margin-bottom: 16px; }
-.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-.tabs button { padding: 6px 16px; background: var(--bg-white); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; cursor: pointer; }
-.tabs button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .follow-list { display: flex; flex-direction: column; gap: 12px; }
 .follow-card { display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--bg-white); border-radius: var(--radius); box-shadow: var(--shadow); }
 .follow-info h4 { font-size: 16px; margin-bottom: 4px; }

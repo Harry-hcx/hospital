@@ -142,10 +142,10 @@ onMounted(async () => {
       startBannerTimer()
     }
 
-    hotHospitals.value = d.recommendHospitals || d.hotHospitals || []
-    hotDoctors.value = d.recommendDoctors || d.hotDoctors || []
-    hotDiseases.value = d.recommendDiseases || d.hotDiseases || []
-    hotArticles.value = d.recommendArticles || d.hotArticles || []
+    hotHospitals.value = d.hotHospitals || []
+    hotDoctors.value = d.hotDoctors || []
+    hotDiseases.value = d.hotDiseases || []
+    hotArticles.value = d.hotArticles || []
   } catch (e) {
     console.error('加载首页数据失败', e)
   }

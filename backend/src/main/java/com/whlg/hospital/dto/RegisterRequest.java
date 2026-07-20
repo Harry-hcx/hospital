@@ -2,10 +2,20 @@ package com.whlg.hospital.dto;
 
 public class RegisterRequest {
 
+    private String username;
     private String phone;
     private String password;
-    private String confirmPassword;
-    private String captcha;
+    private String realName;
+    private String email;
+    private Integer gender;
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
     public String getPhone() {
         return phone;
@@ -23,19 +33,27 @@ public class RegisterRequest {
         this.password = password;
     }
 
-    public String getConfirmPassword() {
-        return confirmPassword;
+    public String getRealName() {
+        return realName;
     }
 
-    public void setConfirmPassword(String confirmPassword) {
-        this.confirmPassword = confirmPassword;
+    public void setRealName(String realName) {
+        this.realName = realName;
     }
 
-    public String getCaptcha() {
-        return captcha;
+    public String getEmail() {
+        return email;
     }
 
-    public void setCaptcha(String captcha) {
-        this.captcha = captcha;
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public Integer getGender() {
+        return gender;
+    }
+
+    public void setGender(Integer gender) {
+        this.gender = gender;
     }
 }

@@ -32,6 +32,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             "/api/search/global",
             "/api/health",
             "/api/payments/callback",
+            "/api/payments/alipay/notify",
+            "/api/payments/alipay/return",
             "/api/docs"
     ));
 
@@ -51,7 +53,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         String authorization = request.getHeader("Authorization");
         if (authorization == null || !authorization.startsWith("Bearer ")) {
-            System.out.println(requestUri);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             throw new ApiException(StatusCode.UNAUTHORIZED, "未登录"+requestUri);
         }
 
@@ -60,6 +62,7 @@ public class AuthInterceptor implements HandlerInterceptor {
                 .eq(UserToken::getToken, token)
                 .eq(UserToken::getStatus, 1));
         if (userToken == null || (userToken.getExpireTime() != null && userToken.getExpireTime().isBefore(LocalDateTime.now()))) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             throw new ApiException(StatusCode.UNAUTHORIZED, "登录已失效");
         }
 

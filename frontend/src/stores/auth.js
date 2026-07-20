@@ -2,10 +2,17 @@ import { defineStore } from 'pinia'
 import { loginApi, getMeApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    token: localStorage.getItem('token') || '',
-    userInfo: JSON.parse(localStorage.getItem('userInfo') || 'null'),
-  }),
+  state: () => {
+    let userInfo = null
+    try {
+      const raw = localStorage.getItem('userInfo')
+      userInfo = raw ? JSON.parse(raw) : null
+    } catch { userInfo = null }
+    return {
+      token: localStorage.getItem('token') || '',
+      userInfo,
+    }
+  },
 
   getters: {
     isLoggedIn: (state) => !!state.token,

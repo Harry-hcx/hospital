@@ -17,6 +17,8 @@ public interface OrderService {
 
     void cancelAppointment(String orderNo);
 
+    void completeAppointment(String orderNo);
+
     Map<String, Object> payAppointment(String orderNo, PayRequest request);
 
     PageResult<Map<String, Object>> listMyAppointments(Integer page, Integer pageSize, Integer status);
@@ -24,6 +26,8 @@ public interface OrderService {
     Map<String, Object> createConsult(CreateConsultRequest request);
 
     Map<String, Object> getConsult(String orderNo);
+
+    void cancelConsult(String orderNo);
 
     Map<String, Object> payConsult(String orderNo, PayRequest request);
 

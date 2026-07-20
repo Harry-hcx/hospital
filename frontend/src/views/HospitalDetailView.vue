@@ -7,12 +7,12 @@
       </div>
 
       <div class="detail-header" v-if="hospital.id">
-        <img :src="hospital.avatar || defaultImg" :alt="hospital.name" class="header-img" />
+        <img :src="resolveImageUrl(hospital.image, 'hospital_100001977.jpg')" :alt="hospital.name" class="header-img" />
         <div class="header-info">
           <h2>{{ hospital.name }} <span class="level-tag">{{ hospital.level }}</span></h2>
           <p class="addr">{{ hospital.province }}{{ hospital.city }}{{ hospital.district }} {{ hospital.address }}</p>
           <p class="phone" v-if="hospital.phone">电话：{{ hospital.phone }}</p>
-          <p class="desc">{{ hospital.description || '暂无简介' }}</p>
+          <p class="desc">{{ hospital.intro || hospital.description || '暂无简介' }}</p>
           <button class="btn-follow" @click="toggleFollow">
             {{ isFollowed ? '已关注' : '+ 关注' }}
           </button>
@@ -25,7 +25,7 @@
           <h3>科室列表</h3>
           <ul class="dept-list">
             <li v-for="d in departments" :key="d.id" :class="{ active: activeDeptId === d.id }" @click="activeDeptId = d.id">
-              {{ d.name }}
+              {{ d.displayName || d.name }}
             </li>
           </ul>
         </div>
@@ -35,12 +35,12 @@
           <h3>医生团队</h3>
           <div class="doctor-list">
             <div class="doctor-card" v-for="d in doctors" :key="d.id" @click="$router.push(`/doctor/${d.id}`)">
-              <img :src="d.avatar || defaultImg" :alt="d.name" class="doctor-img" />
+              <img :src="resolveImageUrl(d.avatar, 'doctor-male-doc.jpg') || defaultImg" :alt="d.name" class="doctor-img" />
               <div class="doctor-info">
                 <h4>{{ d.name }} <span class="title-tag">{{ d.title }}</span></h4>
                 <p>{{ d.departmentName }}</p>
-                <p class="desc">{{ d.description || '暂无简介' }}</p>
-                <RateStar :modelValue="d.avgRating || 4.5" readonly :size="'14px'" showText />
+              <p class="desc">{{ d.description || '暂无简介' }}</p>
+                <RateStar :modelValue="d.rating || 0" readonly :size="'14px'" showText />
               </div>
             </div>
           </div>
@@ -61,7 +61,8 @@ import AppFooter from '@/components/AppFooter.vue'
 import RateStar from '@/components/RateStar.vue'
 import Pagination from '@/components/Pagination.vue'
 import { getHospitalDetail, getHospitalDepartments, getHospitalDoctors } from '@/api/hospital'
-import { createFollow, deleteFollow } from '@/api/user'
+import { createFollow, deleteFollow, getMyFollows } from '@/api/user'
+import { resolveImageUrl } from '@/utils/asset'
 
 const route = useRoute()
 const router = useRouter()
@@ -75,7 +76,7 @@ const doctorPage = ref(1)
 const doctorPageSize = ref(10)
 const loadingDoctors = ref(false)
 const isFollowed = ref(false)
-const defaultImg = 'https://picsum.photos/300/200?random=99'
+const defaultImg = resolveImageUrl('doctor-male-doc.jpg', 'doctor-male-doc.jpg')
 
 onMounted(async () => {
   const id = route.params.id
@@ -84,15 +85,20 @@ onMounted(async () => {
       getHospitalDetail(id),
       getHospitalDepartments(id)
     ])
-    const hd = hRes.data.data || hRes.data
+    const hd = unwrapResponseData(hRes) || {}
     hospital.value = hd
-    const dd = dRes.data.data || dRes.data
-    departments.value = dd || []
+    const dd = unwrapResponseData(dRes)
+    departments.value = flattenDepartments((dd && dd.length ? dd : hd.departments) || [])
     if (departments.value.length) activeDeptId.value = departments.value[0].id
+    if (localStorage.getItem('token')) {
+      const fRes = await getMyFollows({ type: 1, page: 1, pageSize: 1000 })
+      const fd = fRes.data.data || fRes.data
+      isFollowed.value = (fd.list || []).some(item => Number(item.followId) === Number(id))
+    }
   } catch (e) {
     console.error('加载医院详情失败', e)
   }
-  fetchDoctors()
+  if (!departments.value.length) fetchDoctors()
 })
 
 watch(activeDeptId, () => {
@@ -106,10 +112,10 @@ async function fetchDoctors() {
     const res = await getHospitalDoctors(route.params.id, {
       page: doctorPage.value,
       pageSize: doctorPageSize.value,
-      departmentId: activeDeptId.value
+      departmentId: activeDeptId.value || undefined,
     })
-    const d = res.data.data || res.data
-    doctors.value = d.records || []
+    const d = unwrapResponseData(res) || {}
+    doctors.value = d.list || d.records || []
     doctorTotal.value = d.total || 0
   } catch (e) {
     console.error('加载医生列表失败', e)
@@ -135,6 +141,21 @@ async function toggleFollow() {
   } catch (e) {
     console.error('关注操作失败', e)
   }
+}
+
+function unwrapResponseData(res) {
+  return res?.data?.data ?? res?.data ?? res
+}
+
+function flattenDepartments(items, level = 0) {
+  if (!Array.isArray(items)) return []
+  return items.flatMap((item) => {
+    const current = {
+      ...item,
+      displayName: `${'  '.repeat(level)}${item.name}`,
+    }
+    return [current, ...flattenDepartments(item.children, level + 1)]
+  })
 }
 </script>
 

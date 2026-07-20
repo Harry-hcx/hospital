@@ -21,12 +21,11 @@
       <div class="extra-links">
         <router-link to="/register">还没有账号？立即注册</router-link>
       </div>
-      <div class="dev-section">
-        <div class="dev-divider"><span>开发模式（跳过 API）</span></div>
-        <button class="btn-primary btn-block btn-dev" @click="devLogin" :disabled="loading">
-          {{ loading ? '登录中...' : '一键登录（Mock 账号）' }}
+      <div v-if="isDev" class="dev-section">
+        <div class="dev-divider"><span>本地演示</span></div>
+        <button class="btn-primary btn-block btn-dev" @click="demoLogin" :disabled="loading">
+          {{ loading ? '登录中...' : '使用演示账号登录' }}
         </button>
-        <p class="dev-hint">手机号 13800138000 / 密码 123456</p>
       </div>
     </div>
   </div>
@@ -44,6 +43,7 @@ const auth = useAuthStore()
 const form = reactive({ phone: '', password: '' })
 const remember = ref(false)
 const loading = ref(false)
+const isDev = import.meta.env.DEV
 
 async function handleLogin() {
   if (!/^1[3-9]\d{9}$/.test(form.phone)) return alert('请输入正确的手机号')
@@ -61,17 +61,10 @@ async function handleLogin() {
   }
 }
 
-function devLogin() {
-  loading.value = true
-  const mockToken = 'eyJhbGciOiJIUzI1NiJ9.dev-mock-token'
-  const mockUser = { id: 1, phone: '13800138000', realName: '张三', avatar: '' }
-  const mockAuth = useAuthStore()
-  mockAuth.token = mockToken
-  mockAuth.userInfo = mockUser
-  localStorage.setItem('token', mockToken)
-  localStorage.setItem('userInfo', JSON.stringify(mockUser))
-  const redirect = route.query.redirect || '/'
-  router.push(redirect)
+async function demoLogin() {
+  form.phone = '13800138000'
+  form.password = '123456'
+  await handleLogin()
 }
 </script>
 
@@ -190,10 +183,4 @@ function devLogin() {
   background: #f57c00;
 }
 
-.dev-hint {
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 8px;
-}
 </style>

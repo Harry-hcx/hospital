@@ -8,7 +8,7 @@
         <div class="review-list">
           <div class="review-card" v-for="r in reviews" :key="r.id">
             <div class="review-header">
-              <span class="review-type">{{ r.orderType === 'appointment' ? '挂号' : '咨询' }}</span>
+              <span class="review-type">{{ r.orderType === 1 ? '挂号' : '咨询' }}</span>
               <span class="review-doctor">{{ r.doctorName }}</span>
               <RateStar :modelValue="r.rating" readonly :size="'14px'" />
               <span class="review-date">{{ r.createTime }}</span>
@@ -37,16 +37,20 @@ const reviews = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
+const loading = ref(false)
+const loadError = ref('')
 
 onMounted(fetchData)
 
 async function fetchData() {
+  loading.value = true
   try {
     const res = await getMyReviews({ page: page.value, pageSize: pageSize.value })
     const d = res.data.data || res.data
-    reviews.value = d.records || []
+    reviews.value = d.list || []
     total.value = d.total || 0
-  } catch (e) { console.error('加载评价列表失败', e) }
+  } catch (e) { loadError.value = '加载评价失败，请稍后重试'; console.error('加载评价列表失败', e) }
+  finally { loading.value = false }
 }
 
 function handlePage(p) { page.value = p; fetchData() }

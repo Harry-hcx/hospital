@@ -2,13 +2,13 @@ package com.whlg.hospital.dto;
 
 public class PayRequest {
 
-    private Integer payType;
+    private String payMethod;
 
-    public Integer getPayType() {
-        return payType;
+    public String getPayMethod() {
+        return payMethod;
     }
 
-    public void setPayType(Integer payType) {
-        this.payType = payType;
+    public void setPayMethod(String payMethod) {
+        this.payMethod = payMethod;
     }
 }

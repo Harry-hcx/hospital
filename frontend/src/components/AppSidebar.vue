@@ -74,7 +74,17 @@ const menuMap = {
   '/feedback': 'feedback',
 }
 
-const activeMenu = computed(() => menuMap[route.path] || '')
+const activeMenu = computed(() => {
+  if (route.path === '/follow') {
+    const followMenuMap = {
+      1: 'followHospital',
+      2: 'followDoctor',
+      3: 'followDisease',
+    }
+    return followMenuMap[Number(route.query.type) || 1]
+  }
+  return menuMap[route.path] || ''
+})
 </script>
 
 <style scoped>

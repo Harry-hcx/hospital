@@ -35,16 +35,20 @@ const messages = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
+const loading = ref(false)
+const loadError = ref('')
 
 onMounted(fetchData)
 
 async function fetchData() {
+  loading.value = true
   try {
     const res = await getMessages({ page: page.value, pageSize: pageSize.value })
     const d = res.data.data || res.data
-    messages.value = d.records || []
+    messages.value = d.list || []
     total.value = d.total || 0
-  } catch (e) { console.error('加载消息失败', e) }
+  } catch (e) { loadError.value = '加载消息失败，请稍后重试'; console.error('加载消息失败', e) }
+  finally { loading.value = false }
 }
 
 function handlePage(p) { page.value = p; fetchData() }
@@ -53,7 +57,7 @@ async function handleRead(m) {
   if (!m.isRead) {
     try {
       await markMessageRead(m.id)
-      m.isRead = true
+      m.isRead = 1
     } catch (e) { console.error('标记已读失败', e) }
   }
 }

@@ -10,9 +10,9 @@
             <label>反馈类型</label>
             <select v-model="form.feedbackType">
               <option value="">请选择</option>
-              <option value="bug">功能异常</option>
-              <option value="suggestion">建议</option>
-              <option value="other">其他</option>
+              <option :value="1">功能异常</option>
+              <option :value="2">建议</option>
+              <option :value="3">其他</option>
             </select>
           </div>
           <div class="form-group">
@@ -27,7 +27,7 @@
           <div class="feedback-list">
             <div class="feedback-card" v-for="f in feedbacks" :key="f.id">
               <div class="fb-header">
-                <span class="fb-type">{{ typeMap[f.feedbackType] || f.feedbackType }}</span>
+                <span class="fb-type">{{ typeMap[f.type] || f.type }}</span>
                 <span class="fb-date">{{ f.createTime }}</span>
               </div>
               <p class="fb-content">{{ f.content }}</p>
@@ -50,18 +50,23 @@ import { getMyFeedbacks, createFeedback } from '@/api/user'
 
 const feedbacks = ref([])
 const submitting = ref(false)
-const typeMap = { bug: '功能异常', suggestion: '建议', other: '其他' }
+const loading = ref(false)
+const loadError = ref('')
+const typeMap = { 1: '功能异常', 2: '建议', 3: '其他' }
 const form = ref({ feedbackType: '', content: '' })
 
 onMounted(async () => {
+  loading.value = true
   try {
     const res = await getMyFeedbacks({ page: 1, pageSize: 100 })
     const d = res.data.data || res.data
-    feedbacks.value = d.records || []
-  } catch (e) { console.error('加载反馈记录失败', e) }
+    feedbacks.value = d.list || []
+  } catch (e) { loadError.value = '加载反馈记录失败，请稍后重试'; console.error('加载反馈记录失败', e) }
+  finally { loading.value = false }
 })
 
 async function handleSubmit() {
+  if (!form.value.feedbackType) { alert('请选择反馈类型'); return }
   if (!form.value.content) { alert('请输入反馈内容'); return }
   submitting.value = true
   try {
@@ -70,7 +75,7 @@ async function handleSubmit() {
     form.value = { feedbackType: '', content: '' }
     const res = await getMyFeedbacks({ page: 1, pageSize: 100 })
     const d = res.data.data || res.data
-    feedbacks.value = d.records || []
+    feedbacks.value = d.list || []
   } catch (e) { console.error('提交失败', e); alert('提交失败') }
   finally { submitting.value = false }
 }

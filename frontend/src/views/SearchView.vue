@@ -27,7 +27,7 @@
           <div class="result-info">
             <h4>{{ item.name }} <span class="title-tag">{{ item.title }}</span></h4>
             <p>{{ item.hospitalName }} · {{ item.departmentName }}</p>
-            <RateStar :modelValue="item.avgRating || 4.5" readonly :size="'14px'" showText />
+            <RateStar :modelValue="item.rating || 0" readonly :size="'14px'" showText />
           </div>
         </div>
       </div>
@@ -36,7 +36,7 @@
       <div v-if="activeTab === 'disease'" class="result-grid">
         <div class="result-card grid-card" v-for="item in list" :key="item.id" @click="$router.push(`/disease/${item.id}`)">
           <h4>{{ item.name }}</h4>
-          <p>{{ item.departmentName }}</p>
+          <p>{{ item.alias || item.location || '暂无更多信息' }}</p>
         </div>
       </div>
 
@@ -47,12 +47,13 @@
           <div class="result-info">
             <h4>{{ item.title }}</h4>
             <p class="summary">{{ item.summary || '' }}</p>
-            <span class="meta">{{ item.createTime }}</span>
+            <span class="meta">{{ item.publishTime || item.createTime }}</span>
           </div>
         </div>
       </div>
 
       <div class="empty" v-if="!loading && list.length === 0">未找到相关结果</div>
+      <div class="error" v-if="!loading && error">{{ error }}</div>
       <div class="loading" v-if="loading">搜索中...</div>
       <Pagination :total="total" :current="page" :pageSize="pageSize" @change="handlePage" />
     </div>
@@ -78,6 +79,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
+const error = ref('')
 
 const resolveHospitalImage = (item) => resolveImageUrl(item?.image || item?.avatar, 'hospital_100001977.jpg')
 const resolveDoctorImage = (item) => resolveImageUrl(item?.avatar, 'doctor-male-doc.jpg')
@@ -108,8 +110,13 @@ function switchTab(type) {
 }
 
 async function fetchData() {
-  if (!keyword.value) return
+  if (!keyword.value) {
+    list.value = []
+    total.value = 0
+    return
+  }
   loading.value = true
+  error.value = ''
   try {
     const res = await globalSearch({
       keyword: keyword.value,
@@ -118,8 +125,8 @@ async function fetchData() {
       pageSize: pageSize.value
     })
     const d = res?.data || {}
-    list.value = d.records || []
-    total.value = d.total || 0
+    list.value = Array.isArray(d[activeTab.value]) ? d[activeTab.value] : []
+    total.value = d.counts?.[activeTab.value] ?? list.value.length
   } catch (e) { console.error('搜索失败', e) }
   finally { loading.value = false }
 }
@@ -156,6 +163,6 @@ function handlePage(p) { page.value = p; fetchData() }
 .result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .grid-card { flex-direction: column; border-left: 4px solid var(--primary); }
 .grid-card h4 { font-size: 16px; margin-bottom: 6px; }
-.empty, .loading { text-align: center; padding: 60px; color: var(--text-muted); }
+.empty, .loading, .error { text-align: center; padding: 60px; color: var(--text-muted); }
 @media (max-width: 600px) { .result-grid { grid-template-columns: 1fr; } }
 </style>

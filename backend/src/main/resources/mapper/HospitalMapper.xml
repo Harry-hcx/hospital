@@ -36,7 +36,7 @@
         insert into t_hospital (
             name, level, address, phone, intro, image, province, city, department_count, doctor_count, follow_count, status, create_time, update_time
         ) values (
-            #{name}, #{level}, #{address}, #{phone}, #{intro}, #{image}, #{province}, #{city}, #{departmentCount}, #{doctorCount}, #{followCount}, #{status}, #{createTime}, #{updateTime}
+            #{name}, #{level}, #{address}, #{phone}, #{intro}, #{image}, #{province}, #{city},  #{departmentCount}, #{doctorCount}, #{followCount}, #{status}, #{createTime}, #{updateTime}
         )
     </insert>
 

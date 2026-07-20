@@ -13,3 +13,12 @@ mybatis-plus:
   mapper-locations: classpath:/mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
+payment:
+  callback-secret: test-payment-secret
+cors:
+  allowed-origins: http://localhost:3000
+auth:
+  captcha-bypass:
+    enabled: true
+    code: 8888
+    phones: ""

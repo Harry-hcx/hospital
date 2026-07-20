@@ -4,25 +4,30 @@
       <h2>用户注册</h2>
       <form @submit.prevent="handleRegister">
         <div class="form-group">
+          <label>用户名</label>
+          <input v-model="form.username" type="text" maxlength="30" placeholder="请输入用户名" />
+        </div>
+        <div class="form-group">
           <label>手机号</label>
           <input v-model="form.phone" type="text" maxlength="11" placeholder="请输入手机号" />
         </div>
         <div class="form-group">
           <label>验证码</label>
           <div class="captcha-row">
-            <input v-model="form.captcha" type="text" placeholder="请输入验证码" />
-            <button type="button" class="btn-captcha" @click="sendCaptcha" :disabled="sendingCaptcha || captchaCountdown > 0">
-              {{ sendingCaptcha ? '发送中...' : captchaCountdown > 0 ? captchaCountdown + 's' : '获取验证码' }}
+            <input v-model="form.captcha" type="text" maxlength="6" placeholder="请输入验证码" />
+            <button
+              type="button"
+              class="captcha-btn"
+              :disabled="captchaSending || countdown > 0"
+              @click="handleSendCaptcha"
+            >
+              {{ captchaButtonText }}
             </button>
           </div>
         </div>
         <div class="form-group">
           <label>设置密码</label>
           <input v-model="form.password" type="password" placeholder="6-20位密码" />
-        </div>
-        <div class="form-group">
-          <label>确认密码</label>
-          <input v-model="form.confirmPassword" type="password" placeholder="请再次输入密码" />
         </div>
         <div class="form-group">
           <label>真实姓名（选填）</label>
@@ -35,7 +40,7 @@
         <div class="form-group">
           <label>性别</label>
           <select v-model="form.gender">
-            <option value="">请选择</option>
+            <option disabled value="">请选择性别</option>
             <option value="1">男</option>
             <option value="2">女</option>
           </select>
@@ -52,70 +57,76 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { registerApi, sendCaptchaApi } from '@/api/auth'
 
 const router = useRouter()
-const form = reactive({ phone: '', captcha: '', password: '', confirmPassword: '' })
-const captchaCountdown = ref(0)
-const sendingCaptcha = ref(false)
+const form = reactive({ username: '', phone: '', captcha: '', password: '', realName: '', email: '', gender: '' })
 const loading = ref(false)
-let captchaTimer = null
+const captchaSending = ref(false)
+const countdown = ref(0)
 
-function startCaptchaCountdown(seconds = 60) {
-  if (captchaTimer) clearInterval(captchaTimer)
-  captchaCountdown.value = seconds
-  captchaTimer = setInterval(() => {
-    captchaCountdown.value--
-    if (captchaCountdown.value <= 0) {
-      clearInterval(captchaTimer)
-      captchaTimer = null
-      captchaCountdown.value = 0
+let countdownTimer = null
+
+const captchaButtonText = computed(() => {
+  if (captchaSending.value) return '发送中...'
+  if (countdown.value > 0) return `${countdown.value}s后重试`
+  return '获取验证码'
+})
+
+function isValidPhone(phone) {
+  return /^1[3-9]\d{9}$/.test(phone)
+}
+
+function startCountdown(seconds = 60) {
+  clearCountdown()
+  countdown.value = seconds
+  countdownTimer = window.setInterval(() => {
+    if (countdown.value <= 1) {
+      clearCountdown()
+      return
     }
+    countdown.value -= 1
   }, 1000)
 }
 
-async function sendCaptcha() {
-  if (!/^1[3-9]\d{9}$/.test(form.phone)) {
-    alert('请输入正确的手机号')
-    return
+function clearCountdown() {
+  if (countdownTimer !== null) {
+    window.clearInterval(countdownTimer)
+    countdownTimer = null
   }
-  if (sendingCaptcha.value || captchaCountdown.value > 0) {
-    return
-  }
+  countdown.value = 0
+}
 
-  sendingCaptcha.value = true
+async function handleSendCaptcha() {
+  if (!isValidPhone(form.phone)) return alert('请先输入正确的手机号')
+
+  captchaSending.value = true
   try {
-    const res = await sendCaptchaApi({ phone: form.phone })
-    const payload = res?.data || {}
-    console.info('验证码发送成功', payload)
-    alert(`验证码已发送，请留意短信${payload.cooldownSeconds ? `（${payload.cooldownSeconds} 秒后可重发）` : ''}`)
-    startCaptchaCountdown(payload.cooldownSeconds || 60)
-  } catch (error) {
-    console.error('验证码发送失败', error)
-    if (typeof error?.code !== 'number') {
-      alert(error?.response?.data?.message || error?.message || '验证码发送失败，请稍后重试')
-    }
+    const response = await sendCaptchaApi({ phone: form.phone })
+    startCountdown(response?.data?.cooldownSeconds || 60)
+    alert('验证码已发送，请注意查收')
+  } catch {
+    // 拦截器已提示
   } finally {
-    sendingCaptcha.value = false
+    captchaSending.value = false
   }
 }
 
 async function handleRegister() {
-  if (!/^1[3-9]\d{9}$/.test(form.phone)) return alert('请输入正确的手机号')
-  if (form.password.length < 6) return alert('密码至少6位')
-  if (form.password !== form.confirmPassword) return alert('两次密码不一致')
+  const validationMessage = validateRegisterForm()
+  if (validationMessage) return alert(validationMessage)
 
   loading.value = true
   try {
     await registerApi({
-      username: form.phone,
+      username: form.username.trim(),
       phone: form.phone,
       password: form.password,
       realName: form.realName || undefined,
       email: form.email || undefined,
-      gender: form.gender || undefined,
+      gender: Number(form.gender),
     })
     alert('注册成功！即将跳转登录页')
     router.push('/login')
@@ -126,11 +137,22 @@ async function handleRegister() {
   }
 }
 
+function validateRegisterForm() {
+  const username = form.username.trim()
+  const realName = form.realName.trim()
+  const email = form.email.trim()
+  if (!/^[A-Za-z0-9_\u4e00-\u9fa5]{3,20}$/.test(username)) return '用户名需为3-20位中文、英文、数字或下划线'
+  if (!isValidPhone(form.phone)) return '请输入正确的手机号'
+  if (!/^\d{6}$/.test(form.captcha.trim())) return '请输入6位数字验证码'
+  if (!/^(?=.*[A-Za-z])(?=.*\d).{6,20}$/.test(form.password)) return '密码需为6-20位，并同时包含字母和数字'
+  if (realName && !/^[\u4e00-\u9fa5A-Za-z·]{2,20}$/.test(realName)) return '真实姓名需为2-20位中文或英文'
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '请输入正确的邮箱'
+  if (![1, 2].includes(Number(form.gender))) return '请选择性别'
+  return ''
+}
+
 onBeforeUnmount(() => {
-  if (captchaTimer) {
-    clearInterval(captchaTimer)
-    captchaTimer = null
-  }
+  clearCountdown()
 })
 </script>
 
@@ -174,6 +196,36 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 12px;
+}
+
+.captcha-row input {
+  flex: 1;
+}
+
+.captcha-btn {
+  width: 120px;
+  flex-shrink: 0;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--primary);
+  transition: all 0.2s;
+}
+
+.captcha-btn:hover:not(:disabled) {
+  background: var(--primary-light);
+}
+
+.captcha-btn:disabled {
+  border-color: var(--border);
+  color: var(--text-light);
+  background: #f5f5f5;
+  cursor: not-allowed;
 }
 
 .form-group select {

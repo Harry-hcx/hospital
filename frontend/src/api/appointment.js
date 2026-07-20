@@ -8,8 +8,16 @@ export function getAppointmentDetail(orderNo) {
   return request.get(`/appointments/${orderNo}`)
 }
 
+export function getAppointmentSuccess(orderNo) {
+  return request.get(`/appointments/${orderNo}/success`)
+}
+
 export function cancelAppointment(orderNo) {
-  return request.post(`/appointments/${orderNo}/cancel`)
+  return request.post(`/appointments/${orderNo}/cancel`, {})
+}
+
+export function completeAppointment(orderNo) {
+  return request.post(`/appointments/${orderNo}/complete`, {})
 }
 
 export function payAppointment(orderNo, data) {

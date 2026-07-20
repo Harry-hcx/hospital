@@ -1,5 +1,7 @@
 package com.whlg.hospital.vo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public class PageResult<T> {
@@ -19,12 +21,23 @@ public class PageResult<T> {
         this.pageSize = pageSize;
     }
 
+    @JsonIgnore
     public List<T> getRecords() {
         return records;
     }
 
     public void setRecords(List<T> records) {
         this.records = records;
+    }
+
+    @JsonProperty("list")
+    public List<T> getList() {
+        return records;
+    }
+
+    @JsonProperty("list")
+    public void setList(List<T> list) {
+        this.records = list;
     }
 
     public Long getTotal() {

@@ -26,8 +26,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.security.SecureRandom;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -42,6 +44,7 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     private static final long CAPTCHA_COOLDOWN_SECONDS = 60L;
     private static final String CAPTCHA_CODE_KEY_PREFIX = "auth:captcha:code:";
     private static final String CAPTCHA_COOLDOWN_KEY_PREFIX = "auth:captcha:cooldown:";
+    private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
 
     private final UserMapper userMapper;
     private final UserTokenMapper userTokenMapper;
@@ -95,12 +98,14 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
             throw new ApiException(StatusCode.BAD_REQUEST, "验证码发送过于频繁，请稍后再试");
         }
 
-        String code = AliyunSmsUtil.generateVerificationCode();
+        String code;
         try {
-            String templateParam = String.format("{\"code\":\"%s\",\"min\":\"5\"}", code);
-            String providerResponse = aliyunSmsUtil.sendSmsVerifyCode(phone, smsSignName, smsTemplateCode, templateParam, "captcha-" + phone);
+            String templateParam = "{\"code\":\"##code##\",\"min\":\"5\"}";
+            AliyunSmsUtil.SmsSendResult smsResult =
+                    aliyunSmsUtil.sendSmsVerifyCode(phone, smsSignName, smsTemplateCode, templateParam, "captcha-" + phone);
+            code = smsResult.getVerifyCode();
             stringRedisTemplate.opsForValue().set(captchaCodeKey(phone), code, CAPTCHA_EXPIRE_SECONDS, TimeUnit.SECONDS);
-            log.info("Captcha sent successfully to phone={}, providerResponse={}", phone, providerResponse);
+            log.info("Captcha sent successfully to phone={}, providerResponse={}", phone, smsResult.getProviderResponse());
         } catch (Exception ex) {
             stringRedisTemplate.delete(cooldownKey);
             log.error("Failed to send captcha to phone={}: {}", phone, ex.getMessage(), ex);
@@ -118,28 +123,35 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     public Map<String, Object> register(RegisterRequest request) {
         check(request != null, "请求体不能为空");
         String phone = normalizePhone(request.getPhone());
+        String username = request.getUsername() == null ? null : request.getUsername().trim();
+        check(username != null && !username.isEmpty(), "用户名不能为空");
+        check(username.matches("[A-Za-z0-9_\\u4e00-\\u9fa5]{3,20}"), "用户名需为3-20位中文、英文、数字或下划线");
         check(PHONE_PATTERN.matcher(phone).matches(), "手机号格式不正确");
         check(request.getPassword() != null && !request.getPassword().trim().isEmpty(), "密码不能为空");
-        check(request.getPassword().equals(request.getConfirmPassword()), "两次密码不一致");
-        verifyCaptcha(phone, request.getCaptcha());
+        check(request.getPassword().matches("^(?=.*[A-Za-z])(?=.*\\d).{6,20}$"), "密码需为6-20位，并同时包含字母和数字");
+        check(request.getRealName() == null || request.getRealName().trim().isEmpty()
+                || request.getRealName().trim().matches("[\\u4e00-\\u9fa5A-Za-z·]{2,20}"), "真实姓名格式不正确");
+        check(request.getEmail() == null || request.getEmail().trim().isEmpty()
+                || request.getEmail().trim().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"), "邮箱格式不正确");
+        check(request.getGender() == null || request.getGender() == 1 || request.getGender() == 2, "性别不正确");
 
-        User exists = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
-        if (exists != null) {
-            throw new ApiException(StatusCode.BAD_REQUEST, "手机号已注册");
-        }
+        check(userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getPhone, phone)) == 0, "手机号已注册");
+        check(userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, username)) == 0, "用户名已存在");
 
         User user = new User();
-        user.setUsername(phone);
+        user.setUsername(username);
         user.setPhone(phone);
-        user.setPassword(PasswordUtil.md5(request.getPassword()));
-        user.setRealName("用户" + phone.substring(phone.length() - 4));
+        user.setPassword(PasswordUtil.encode(request.getPassword()));
+        user.setRealName(request.getRealName() == null || request.getRealName().trim().isEmpty()
+                ? "用户" + phone.substring(phone.length() - 4)
+                : request.getRealName().trim());
+        user.setEmail(request.getEmail() == null || request.getEmail().trim().isEmpty() ? null : request.getEmail().trim());
+        user.setGender(request.getGender());
         user.setAvatar("/avatar/default.png");
         user.setStatus(1);
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.insert(user);
-        stringRedisTemplate.delete(captchaCodeKey(phone));
-
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("userId", user.getId());
         return result;
@@ -149,10 +161,17 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     public Map<String, Object> login(LoginRequest request) {
         check(request != null, "请求体不能为空");
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, request.getPhone()));
-        check(user != null && PasswordUtil.matches(request.getPassword(), user.getPassword()), "手机号或密码错误");
-        upgradePasswordIfLegacy(user, request.getPassword());
+        check(user != null && Integer.valueOf(1).equals(user.getStatus())
+                && PasswordUtil.matches(request.getPassword(), user.getPassword()), "手机号或密码错误");
+        if (!PasswordUtil.isEncoded(user.getPassword())) {
+            user.setPassword(PasswordUtil.encode(request.getPassword()));
+            user.setUpdateTime(LocalDateTime.now());
+            userMapper.updateById(user);
+        }
 
-        String token = "token-" + user.getId() + "-" + System.nanoTime();
+        byte[] tokenBytes = new byte[32];
+        TOKEN_RANDOM.nextBytes(tokenBytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
         UserToken userToken = new UserToken();
         userToken.setUserId(user.getId());
         userToken.setToken(token);
@@ -171,9 +190,7 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
     @Override
     public Map<String, Object> me() {
         User user = userMapper.selectById(requireUserId());
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("userInfo", buildUserInfo(user));
-        return result;
+        return buildUserInfo(user);
     }
 
     @Override
@@ -182,8 +199,7 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
         User user = userMapper.selectById(userId);
         check(PasswordUtil.matches(request.getOldPassword(), user.getPassword()), "旧密码错误");
         check(request.getNewPassword() != null && !request.getNewPassword().trim().isEmpty(), "新密码不能为空");
-        check(request.getNewPassword().equals(request.getConfirmPassword()), "两次密码不一致");
-        user.setPassword(PasswordUtil.md5(request.getNewPassword()));
+        user.setPassword(PasswordUtil.encode(request.getNewPassword()));
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
         disableUserTokens(userId);
@@ -250,23 +266,13 @@ public class AuthServiceImpl extends ServiceSupport implements AuthService {
                 .set(UserToken::getUpdateTime, LocalDateTime.now()));
     }
 
-    private void upgradePasswordIfLegacy(User user, String rawPassword) {
-        if (user == null || rawPassword == null || user.getPassword() == null) {
-            return;
-        }
-        if (!user.getPassword().equals(rawPassword)) {
-            return;
-        }
-        user.setPassword(PasswordUtil.md5(rawPassword));
-        user.setUpdateTime(LocalDateTime.now());
-        userMapper.updateById(user);
-    }
-
     private Map<String, Object> buildUserInfo(User user) {
         Map<String, Object> userInfo = new LinkedHashMap<String, Object>();
         userInfo.put("id", user.getId());
-        userInfo.put("name", user.getRealName());
+        userInfo.put("realName", user.getRealName());
         userInfo.put("phone", user.getPhone());
+        userInfo.put("email", user.getEmail());
+        userInfo.put("gender", user.getGender());
         userInfo.put("avatar", user.getAvatar());
         return userInfo;
     }

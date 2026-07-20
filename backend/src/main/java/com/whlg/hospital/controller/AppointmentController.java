@@ -35,9 +35,20 @@ public class AppointmentController {
         return R.ok(orderService.getAppointment(orderNo));
     }
 
+    @GetMapping("/{orderNo}/success")
+    public R<Map<String, Object>> success(@PathVariable("orderNo") String orderNo) {
+        return R.ok(orderService.getAppointment(orderNo));
+    }
+
     @PostMapping("/{orderNo}/cancel")
     public R<Object> cancel(@PathVariable("orderNo") String orderNo) {
         orderService.cancelAppointment(orderNo);
+        return R.ok();
+    }
+
+    @PostMapping("/{orderNo}/complete")
+    public R<Object> complete(@PathVariable("orderNo") String orderNo) {
+        orderService.completeAppointment(orderNo);
         return R.ok();
     }
 

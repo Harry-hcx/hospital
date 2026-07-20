@@ -30,6 +30,7 @@
       </div>
 
       <div class="empty" v-if="!loading && diseases.length === 0">暂无疾病数据</div>
+      <div class="error" v-if="!loading && error">{{ error }}</div>
       <div class="loading" v-if="loading">加载中...</div>
 
       <Pagination :total="total" :current="page" :pageSize="pageSize" @change="handlePageChange" />
@@ -52,6 +53,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(12)
 const loading = ref(false)
+const error = ref('')
 
 const filters = ref({ departmentId: '', keyword: '' })
 
@@ -65,18 +67,24 @@ onMounted(async () => {
 
 async function fetchData() {
   loading.value = true
+  error.value = ''
   try {
     const res = await getDiseases({ page: page.value, pageSize: pageSize.value, ...filters.value })
-    const d = res.data.data || res.data
-    diseases.value = d.records || []
+    const d = unwrapResponseData(res) || {}
+    diseases.value = d.list || d.records || []
     total.value = d.total || 0
   } catch (e) {
+    error.value = '疾病列表加载失败，请稍后重试'
     console.error('加载疾病列表失败', e)
   } finally { loading.value = false }
 }
 
 function handleSearch() { page.value = 1; fetchData() }
 function handlePageChange(p) { page.value = p; fetchData() }
+
+function unwrapResponseData(res) {
+  return res?.data?.data ?? res?.data ?? res
+}
 </script>
 
 <style scoped>
@@ -101,7 +109,7 @@ function handlePageChange(p) { page.value = p; fetchData() }
 .disease-card h4 { font-size: 16px; color: var(--text); margin-bottom: 8px; }
 .dept { font-size: 13px; color: var(--primary); margin-bottom: 6px; }
 .desc { font-size: 13px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.empty, .loading { text-align: center; padding: 60px; color: var(--text-muted); }
+.empty, .loading, .error { text-align: center; padding: 60px; color: var(--text-muted); }
 @media (max-width: 800px) { .disease-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 500px) { .disease-grid { grid-template-columns: 1fr; } }
 </style>

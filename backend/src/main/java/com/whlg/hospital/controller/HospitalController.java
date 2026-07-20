@@ -46,7 +46,8 @@ public class HospitalController {
     @GetMapping("/{id}/doctors")
     public R<PageResult<Map<String, Object>>> doctors(@PathVariable("id") Long id,
                                                       @RequestParam(required = false) Integer page,
-                                                      @RequestParam(required = false) Integer pageSize) {
-        return R.ok(medicalResourceService.getHospitalDoctors(id, page, pageSize));
+                                                      @RequestParam(required = false) Integer pageSize,
+                                                      @RequestParam(required = false) Long departmentId) {
+        return R.ok(medicalResourceService.getHospitalDoctors(id, page, pageSize, departmentId));
     }
 }

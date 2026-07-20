@@ -21,8 +21,9 @@
         <mybatis.plus.version>3.4.3.4</mybatis.plus.version>
         <druid.version>1.2.8</druid.version>
         <lombok.version>1.18.32</lombok.version>
-        <aliyun.dysmsapi.version>3.1.0</aliyun.dysmsapi.version>
+        <aliyun.dypnsapi.version>2.0.0</aliyun.dypnsapi.version>
         <gson.version>2.10.1</gson.version>
+        <alipay.sdk.version>4.40.461.ALL</alipay.sdk.version>
     </properties>
 
     <dependencies>
@@ -63,8 +64,8 @@
 
         <dependency>
             <groupId>com.aliyun</groupId>
-            <artifactId>dysmsapi20170525</artifactId>
-            <version>${aliyun.dysmsapi.version}</version>
+            <artifactId>dypnsapi20170525</artifactId>
+            <version>${aliyun.dypnsapi.version}</version>
         </dependency>
 
         <dependency>
@@ -80,6 +81,12 @@
         </dependency>
 
         <dependency>
+            <groupId>com.alipay.sdk</groupId>
+            <artifactId>alipay-sdk-java</artifactId>
+            <version>${alipay.sdk.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
@@ -88,6 +95,15 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>com/hospital/**</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
