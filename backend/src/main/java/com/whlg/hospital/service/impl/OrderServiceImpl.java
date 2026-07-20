@@ -189,6 +189,17 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
 
     @Override
     @Transactional
+    public void completeAppointment(String orderNo) {
+        Appointment appointment = requireOwnedAppointment(orderNo);
+        check(Integer.valueOf(2).equals(appointment.getStatus()), "仅已支付订单可确认完成");
+        appointment.setStatus(3);
+        appointment.setUpdateTime(LocalDateTime.now());
+        appointmentMapper.updateById(appointment);
+        createMessage(appointment.getUserId(), "预约已完成", "预约订单 " + appointment.getOrderNo() + " 已确认完成。");
+    }
+
+    @Override
+    @Transactional
     public Map<String, Object> payAppointment(String orderNo, PayRequest request) {
         Appointment appointment = requireOwnedAppointment(orderNo);
         check(Integer.valueOf(1).equals(appointment.getStatus()), "当前订单不可支付");

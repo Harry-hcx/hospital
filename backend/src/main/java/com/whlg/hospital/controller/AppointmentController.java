@@ -46,6 +46,12 @@ public class AppointmentController {
         return R.ok();
     }
 
+    @PostMapping("/{orderNo}/complete")
+    public R<Object> complete(@PathVariable("orderNo") String orderNo) {
+        orderService.completeAppointment(orderNo);
+        return R.ok();
+    }
+
     @PostMapping("/{orderNo}/pay")
     public R<Map<String, Object>> pay(@PathVariable("orderNo") String orderNo, @RequestBody PayRequest request) {
         return R.ok(orderService.payAppointment(orderNo, request));
