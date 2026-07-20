@@ -35,10 +35,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.Period;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -93,6 +96,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         check(Integer.valueOf(1).equals(schedule.getStatus())
                 && schedule.getScheduleDate() != null
                 && !schedule.getScheduleDate().isBefore(LocalDate.now()), "排班不可预约");
+        check(isScheduleTimeAvailable(schedule), "排班已过期");
         check(doctor.getHospitalId() != null && doctor.getHospitalId().equals(schedule.getHospitalId()),
                 "排班归属不一致");
         check(schedule.getRemainCount() != null && schedule.getRemainCount() > 0
@@ -662,6 +666,35 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         } catch (NumberFormatException ignored) {
             return timeSlot.contains(period);
         }
+    }
+
+    private boolean isScheduleTimeAvailable(Schedule schedule) {
+        LocalDate scheduleDate = schedule.getScheduleDate();
+        LocalDate today = LocalDate.now();
+        if (scheduleDate.isBefore(today)) {
+            return false;
+        }
+        if (scheduleDate.isAfter(today)) {
+            return true;
+        }
+        LocalTime endTime = parseScheduleEndTime(schedule.getTimeSlot());
+        return endTime == null || endTime.isAfter(LocalTime.now());
+    }
+
+    private LocalTime parseScheduleEndTime(String timeSlot) {
+        if (timeSlot == null || timeSlot.trim().isEmpty()) {
+            return null;
+        }
+        Matcher matcher = Pattern.compile("(\\d{1,2}):(\\d{2})").matcher(timeSlot);
+        LocalTime endTime = null;
+        while (matcher.find()) {
+            try {
+                endTime = LocalTime.of(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+            } catch (RuntimeException ignored) {
+                return null;
+            }
+        }
+        return endTime;
     }
 
     private String nextOrderNo(String prefix) {

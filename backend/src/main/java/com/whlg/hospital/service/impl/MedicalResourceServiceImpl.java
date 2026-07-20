@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +41,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -251,8 +254,6 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
         begin = begin.isBefore(today) ? today : begin;
         int dayCount = days == null || days < 1 ? 7 : Math.min(days, 31);
         LocalDate end = begin.plusDays(dayCount - 1L);
-        refreshDemoSchedulesIfExpired(doctor, begin);
-        ensureDoctorSchedules(doctor, begin);
         return scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
                         .eq(Schedule::getDoctorId, doctorId)
                         .eq(Schedule::getStatus, 1)
@@ -274,79 +275,44 @@ public class MedicalResourceServiceImpl extends ServiceSupport implements Medica
                     result.put("departmentId", item.getDepartmentId());
                     result.put("registrationPrice", doctor.getRegistrationPrice());
                     result.put("status", item.getStatus());
-                    result.put("isAvailable", item.getRemainCount() != null && item.getRemainCount() > 0
-                            && !item.getScheduleDate().isBefore(LocalDate.now()));
+                    result.put("isAvailable", isScheduleAvailable(item));
                     return result;
                 }).collect(Collectors.toList());
     }
 
-    private void refreshDemoSchedulesIfExpired(Doctor doctor, LocalDate begin) {
-        List<Schedule> schedules = scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
-                .eq(Schedule::getDoctorId, doctor.getId())
-                .eq(Schedule::getStatus, 1)
-                .gt(Schedule::getRemainCount, 0)
-                .eq(Schedule::getHospitalId, doctor.getHospitalId())
-                .eq(Schedule::getDepartmentId, doctor.getDepartmentId())
-                .orderByAsc(Schedule::getScheduleDate)
-                .orderByAsc(Schedule::getTimeSlot));
-        if (schedules.isEmpty()) {
-            return;
+    private boolean isScheduleAvailable(Schedule schedule) {
+        if (schedule == null || schedule.getScheduleDate() == null) {
+            return false;
         }
-        boolean hasAvailableSchedule = schedules.stream()
-                .anyMatch(item -> item.getScheduleDate() != null && !item.getScheduleDate().isBefore(begin));
-        if (hasAvailableSchedule) {
-            return;
+        if (!Integer.valueOf(1).equals(schedule.getStatus())
+                || schedule.getRemainCount() == null || schedule.getRemainCount() <= 0) {
+            return false;
         }
-        Map<LocalDate, LocalDate> shiftedDates = new LinkedHashMap<LocalDate, LocalDate>();
-        for (Schedule schedule : schedules) {
-            LocalDate scheduleDate = schedule.getScheduleDate();
-            if (scheduleDate == null) {
-                continue;
-            }
-            LocalDate shiftedDate = shiftedDates.computeIfAbsent(scheduleDate,
-                    ignored -> begin.plusDays(shiftedDates.size() + 1L));
-            schedule.setScheduleDate(shiftedDate);
-            scheduleMapper.updateById(schedule);
+        LocalDate today = LocalDate.now();
+        if (schedule.getScheduleDate().isBefore(today)) {
+            return false;
         }
+        if (schedule.getScheduleDate().isAfter(today)) {
+            return true;
+        }
+        LocalTime endTime = parseScheduleEndTime(schedule.getTimeSlot());
+        return endTime == null || endTime.isAfter(LocalTime.now());
     }
 
-    private void ensureDoctorSchedules(Doctor doctor, LocalDate begin) {
-        Long availableCount = scheduleMapper.selectCount(new LambdaQueryWrapper<Schedule>()
-                .eq(Schedule::getDoctorId, doctor.getId())
-                .eq(Schedule::getStatus, 1)
-                .gt(Schedule::getRemainCount, 0)
-                .eq(Schedule::getHospitalId, doctor.getHospitalId())
-                .eq(Schedule::getDepartmentId, doctor.getDepartmentId())
-                .ge(Schedule::getScheduleDate, begin));
-        if (availableCount != null && availableCount > 0) {
-            return;
+    private LocalTime parseScheduleEndTime(String timeSlot) {
+        if (timeSlot == null || timeSlot.trim().isEmpty()) {
+            return null;
         }
-        String[] timeSlots = new String[] { "08:00-09:00", "09:00-10:00", "14:00-15:00" };
-        for (int day = 1; day <= 3; day++) {
-            LocalDate scheduleDate = begin.plusDays(day);
-            for (String timeSlot : timeSlots) {
-                Long existing = scheduleMapper.selectCount(new LambdaQueryWrapper<Schedule>()
-                        .eq(Schedule::getDoctorId, doctor.getId())
-                        .eq(Schedule::getHospitalId, doctor.getHospitalId())
-                        .eq(Schedule::getDepartmentId, doctor.getDepartmentId())
-                        .eq(Schedule::getScheduleDate, scheduleDate)
-                        .eq(Schedule::getTimeSlot, timeSlot));
-                if (existing != null && existing > 0) {
-                    continue;
-                }
-                Schedule schedule = new Schedule();
-                schedule.setDoctorId(doctor.getId());
-                schedule.setHospitalId(doctor.getHospitalId());
-                schedule.setDepartmentId(doctor.getDepartmentId());
-                schedule.setScheduleDate(scheduleDate);
-                schedule.setTimeSlot(timeSlot);
-                schedule.setTotalCount(20);
-                schedule.setRemainCount(20);
-                schedule.setStatus(1);
-                schedule.setCreateTime(java.time.LocalDateTime.now());
-                scheduleMapper.insert(schedule);
+        Matcher matcher = Pattern.compile("(\\d{1,2}):(\\d{2})").matcher(timeSlot);
+        LocalTime endTime = null;
+        while (matcher.find()) {
+            try {
+                endTime = LocalTime.of(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+            } catch (RuntimeException ignored) {
+                return null;
             }
         }
+        return endTime;
     }
 
     @Override

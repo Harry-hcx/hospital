@@ -25,7 +25,7 @@
       <div class="section">
         <h3>出诊安排</h3>
         <div class="schedule-grid">
-          <div class="schedule-card" v-for="s in schedules" :key="s.id">
+          <div class="schedule-card" v-for="s in schedules" :key="s.id" :class="{ expired: !isScheduleAvailable(s) }" :data-status="scheduleStatusText(s)">
             <div class="s-date">{{ s.date }}</div>
             <div class="s-period">{{ s.timeSlot }}</div>
             <div class="s-fee">¥{{ s.registrationPrice }}</div>
@@ -115,6 +115,37 @@ function unwrapResponseData(res) {
   return res?.data?.data ?? res?.data ?? res
 }
 
+function isScheduleAvailable(schedule) {
+  if (schedule?.isAvailable === false) return false
+  if (!schedule?.date) return schedule?.isAvailable !== false
+  const dateText = String(schedule.date).slice(0, 10)
+  const todayText = formatDate(new Date())
+  if (dateText < todayText) return false
+  if (dateText > todayText) return schedule?.isAvailable !== false
+  const endTime = parseScheduleEndTime(schedule.timeSlot)
+  if (!endTime) return schedule?.isAvailable !== false
+  const now = new Date()
+  return endTime > now.getHours() * 60 + now.getMinutes()
+}
+
+function scheduleStatusText(schedule) {
+  return Number(schedule?.remainCount || 0) <= 0 ? '已满' : '已过期'
+}
+
+function parseScheduleEndTime(timeSlot) {
+  const matches = String(timeSlot || '').match(/\d{1,2}:\d{2}/g)
+  if (!matches || matches.length === 0) return null
+  const [hour, minute] = matches[matches.length - 1].split(':').map(Number)
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour > 23 || minute > 59) return null
+  return hour * 60 + minute
+}
+
+function formatDate(date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 async function toggleFollow() {
   try {
     if (isFollowed.value) {
@@ -151,6 +182,9 @@ async function toggleFollow() {
 .section h3 { font-size: 18px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .schedule-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .schedule-card { text-align: center; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); }
+.schedule-card.expired { position: relative; background: #f7f7f7; color: var(--text-muted); }
+.schedule-card.expired::after { content: attr(data-status); display: inline-block; margin-top: 8px; padding: 4px 12px; background: #e0e0e0; color: #666; border-radius: 4px; font-size: 12px; }
+.schedule-card.expired .btn-book { pointer-events: none; background: #bdbdbd; cursor: not-allowed; }
 .s-date { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .s-period { font-size: 13px; color: var(--primary); margin-bottom: 4px; }
 .s-fee { font-size: 16px; color: #e53935; font-weight: 600; margin-bottom: 4px; }
