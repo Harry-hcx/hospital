@@ -71,7 +71,7 @@ public class Consult {
     private BigDecimal amount;
     
     /**
-     * 状态: 1待支付 2已支付 3咨询中 4已完成 5已取消
+     * 状态: 1待支付 2已支付 3咨询中 4已完成 5已取消 6已过期
      */
     private Integer status;
     

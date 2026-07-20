@@ -30,6 +30,7 @@ import com.whlg.hospital.vo.PageResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -286,8 +287,10 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     }
 
     @Override
+    @Transactional
     public Map<String, Object> getConsult(String orderNo) {
         Consult consult = requireOwnedConsult(orderNo);
+        expireConsultIfDue(consult);
         Doctor doctor = doctorMapper.selectById(consult.getDoctorId());
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("orderNo", consult.getOrderNo());
@@ -305,17 +308,12 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     @Transactional
     public void cancelConsult(String orderNo) {
         Consult consult = requireOwnedConsult(orderNo);
+        expireConsultIfDue(consult);
         check(Integer.valueOf(1).equals(consult.getStatus()), "当前咨询不可取消");
-        Schedule schedule = findConsultSchedule(consult);
-        check(schedule != null && schedule.getTotalCount() != null && schedule.getRemainCount() != null, "对应排班不存在");
         consult.setStatus(5);
         consult.setUpdateTime(LocalDateTime.now());
         consultMapper.updateById(consult);
-        int updated = scheduleMapper.update(null, new LambdaUpdateWrapper<Schedule>()
-                .eq(Schedule::getId, schedule.getId())
-                .lt(Schedule::getRemainCount, schedule.getTotalCount())
-                .setSql("remain_count = remain_count + 1, status = 1"));
-        check(updated == 1, "咨询号源恢复失败");
+        check(restoreConsultSchedule(consult), "咨询号源恢复失败");
         createMessage(consult.getUserId(), "咨询已取消", "咨询订单 " + consult.getOrderNo() + " 已取消。");
     }
 
@@ -323,6 +321,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     @Transactional
     public Map<String, Object> payConsult(String orderNo, PayRequest request) {
         Consult consult = requireOwnedConsult(orderNo);
+        expireConsultIfDue(consult);
         check(Integer.valueOf(1).equals(consult.getStatus()), "当前咨询不可支付");
         int payMethod = resolvePayMethod(request == null ? null : request.getPayMethod());
         PaymentFlow paymentFlow = upsertPendingPaymentFlow(orderNo, 2, payMethod, consult.getAmount());
@@ -345,9 +344,11 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     }
 
     @Override
+    @Transactional
     public PageResult<Map<String, Object>> listMyConsults(Integer page, Integer pageSize, Integer status) {
+        expirePastPendingConsults();
         Long userId = requireUserId();
-        check(status == null || (status >= 1 && status <= 5), "咨询状态不支持");
+        check(status == null || (status >= 1 && status <= 6), "咨询状态不支持");
         List<Map<String, Object>> records = consultMapper.selectList(new LambdaQueryWrapper<Consult>()
                         .eq(Consult::getUserId, userId)
                         .eq(status != null, Consult::getStatus, status)
@@ -367,6 +368,15 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                     return result;
                 }).collect(Collectors.toList());
         return paginate(records, page, pageSize);
+    }
+
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void expirePastPendingConsults() {
+        List<Consult> pendingConsults = consultMapper.selectList(new LambdaQueryWrapper<Consult>()
+                .eq(Consult::getStatus, 1)
+                .le(Consult::getAppointmentTime, LocalDateTime.now()));
+        pendingConsults.forEach(this::expireConsultIfDue);
     }
 
     @Override
@@ -698,6 +708,48 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                 .filter(item -> item.getTimeSlot() != null && item.getTimeSlot().startsWith(requestedStart + "-"))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private boolean restoreConsultSchedule(Consult consult) {
+        Schedule schedule = findConsultSchedule(consult);
+        if (schedule == null || schedule.getTotalCount() == null || schedule.getRemainCount() == null) {
+            return false;
+        }
+        int updated = scheduleMapper.update(null, new LambdaUpdateWrapper<Schedule>()
+                .eq(Schedule::getId, schedule.getId())
+                .lt(Schedule::getRemainCount, schedule.getTotalCount())
+                .setSql("remain_count = remain_count + 1, status = 1"));
+        return updated == 1;
+    }
+
+    private void expireConsultIfDue(Consult consult) {
+        if (!Integer.valueOf(1).equals(consult.getStatus())
+                || consult.getAppointmentTime() == null
+                || consult.getAppointmentTime().isAfter(LocalDateTime.now())) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = consultMapper.update(null, new LambdaUpdateWrapper<Consult>()
+                .eq(Consult::getId, consult.getId())
+                .eq(Consult::getStatus, 1)
+                .le(Consult::getAppointmentTime, now)
+                .set(Consult::getStatus, 6)
+                .set(Consult::getUpdateTime, now));
+        if (updated != 1) {
+            return;
+        }
+        consult.setStatus(6);
+        consult.setUpdateTime(now);
+        if (!restoreConsultSchedule(consult)) {
+            log.warn("Expired consult schedule could not be released. orderNo={}", consult.getOrderNo());
+        }
+        paymentFlowMapper.update(null, new LambdaUpdateWrapper<PaymentFlow>()
+                .eq(PaymentFlow::getBusinessOrderNo, consult.getOrderNo())
+                .eq(PaymentFlow::getBusinessType, 2)
+                .eq(PaymentFlow::getPayStatus, 0)
+                .set(PaymentFlow::getPayStatus, 3)
+                .set(PaymentFlow::getUpdateTime, now));
+        createMessage(consult.getUserId(), "咨询订单已过期", "咨询订单 " + consult.getOrderNo() + " 已超过预约开始时间，已自动关闭。");
     }
 
     private boolean matchesPeriod(String timeSlot, String period) {

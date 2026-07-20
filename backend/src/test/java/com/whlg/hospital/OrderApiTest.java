@@ -252,6 +252,24 @@ class OrderApiTest extends BaseApiTest {
     }
 
     @Test
+    void shouldExpireUnpaidConsultAfterAppointmentTime() throws Exception {
+        String orderNo = createConsult();
+        LocalDateTime expiredTime = LocalDateTime.now().minusMinutes(1).withSecond(0).withNano(0);
+        String startTime = expiredTime.format(DateTimeFormatter.ofPattern("HH:mm"));
+        String endTime = expiredTime.plusMinutes(1).format(DateTimeFormatter.ofPattern("HH:mm"));
+        jdbcTemplate.update("update t_schedule set schedule_date = ?, time_slot = ? where id = ?",
+                expiredTime.toLocalDate(), startTime + "-" + endTime, 1L);
+        jdbcTemplate.update("update t_consult set appointment_time = ? where order_no = ?", expiredTime, orderNo);
+
+        mockMvc.perform(get("/api/consults/" + orderNo).header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(6));
+
+        Integer remainCount = jdbcTemplate.queryForObject("select remain_count from t_schedule where id = ?", Integer.class, 1L);
+        assertEquals(8, remainCount);
+    }
+
+    @Test
     void shouldPayConsult() throws Exception {
         String orderNo = createConsult();
         Map<String, Object> request = new HashMap<String, Object>();

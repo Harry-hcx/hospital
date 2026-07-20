@@ -68,9 +68,10 @@ const tabs = [
   { label: '待咨询', value: 2 },
   { label: '咨询中', value: 3 },
   { label: '已完成', value: 4 },
-  { label: '已取消', value: 5 }
+  { label: '已取消', value: 5 },
+  { label: '已过期', value: 6 }
 ]
-const statusMap = { 1: '待支付', 2: '待咨询', 3: '咨询中', 4: '已完成', 5: '已取消' }
+const statusMap = { 1: '待支付', 2: '待咨询', 3: '咨询中', 4: '已完成', 5: '已取消', 6: '已过期' }
 
 onMounted(fetchData)
 
@@ -137,6 +138,7 @@ async function submitReview(order) {
 .status-0 { color: #e53935; }
 .status-1 { color: var(--primary); }
 .status-2 { color: #4caf50; }
+.status-6 { color: #e53935; }
 .order-body p { font-size: 13px; color: var(--text-light); padding: 2px 0; }
 .fee { color: #e53935; font-weight: 600; font-size: 15px !important; }
 .order-actions { margin-top: 10px; display: flex; gap: 8px; }
