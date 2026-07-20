@@ -4,7 +4,7 @@
     <div class="page-content">
       <div class="success-card">
         <div class="success-icon" :class="{ pending: !paid }">{{ paid ? '✓' : '!' }}</div>
-        <h2>{{ paid ? '预约成功' : '订单待支付' }}</h2>
+        <h2>{{ paid ? '预约成功' : expired ? '订单已过期' : '订单待支付' }}</h2>
         <div class="order-info" v-if="order.orderNo">
           <p>订单编号：{{ order.orderNo }}</p>
           <p>医生：{{ order.doctor }}</p>
@@ -13,9 +13,9 @@
           <p>就诊人：{{ order.patientName }}</p>
           <p class="fee">费用：¥{{ order.fee }}</p>
         </div>
-        <p v-if="!paid" class="tip">当前订单尚未支付完成，请返回支付页继续支付。</p>
+        <p v-if="!paid" class="tip">{{ expired ? '就诊开始时间已过，订单已自动关闭。' : '当前订单尚未支付完成，请返回支付页继续支付。' }}</p>
         <div class="actions">
-          <router-link :to="paid ? '/my-appointments' : `/reservation/pay/${route.params.orderNo}`" class="btn-primary">{{ paid ? '查看订单' : '继续支付' }}</router-link>
+          <router-link :to="paid || expired ? '/my-appointments' : `/reservation/pay/${route.params.orderNo}`" class="btn-primary">{{ paid || expired ? '查看订单' : '继续支付' }}</router-link>
           <router-link to="/" class="btn-home">返回首页</router-link>
         </div>
       </div>
@@ -34,6 +34,7 @@ import { getAppointmentSuccess } from '@/api/appointment'
 const route = useRoute()
 const order = ref({})
 const paid = computed(() => Number(order.value?.status) === 2)
+const expired = computed(() => Number(order.value?.status) === 6)
 
 onMounted(async () => {
   try {

@@ -42,6 +42,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -110,7 +111,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                 .eq(Appointment::getHospitalId, doctor.getHospitalId())
                 .eq(Appointment::getAppointmentDate, schedule.getScheduleDate())
                 .eq(Appointment::getAppointmentTime, schedule.getTimeSlot())
-                .ne(Appointment::getStatus, 4));
+                .notIn(Appointment::getStatus, Arrays.asList(4, 6)));
         check(existing == 0, "该排班已预约");
 
         int updated = scheduleMapper.update(null, new LambdaUpdateWrapper<Schedule>()
@@ -148,8 +149,10 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     }
 
     @Override
+    @Transactional
     public Map<String, Object> getAppointment(String orderNo) {
         Appointment appointment = requireOwnedAppointment(orderNo);
+        expireAppointmentIfDue(appointment);
         Doctor doctor = doctorMapper.selectById(appointment.getDoctorId());
         com.whlg.hospital.entity.Hospital hospital = hospitalMapper.selectById(appointment.getHospitalId());
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -169,6 +172,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     @Transactional
     public void cancelAppointment(String orderNo) {
         Appointment appointment = requireOwnedAppointment(orderNo);
+        expireAppointmentIfDue(appointment);
         check(Integer.valueOf(1).equals(appointment.getStatus()), "当前订单不可取消");
         Schedule schedule = scheduleMapper.selectOne(new LambdaQueryWrapper<Schedule>()
                 .eq(Schedule::getDoctorId, appointment.getDoctorId())
@@ -203,6 +207,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     @Transactional
     public Map<String, Object> payAppointment(String orderNo, PayRequest request) {
         Appointment appointment = requireOwnedAppointment(orderNo);
+        expireAppointmentIfDue(appointment);
         check(Integer.valueOf(1).equals(appointment.getStatus()), "当前订单不可支付");
         int payMethod = resolvePayMethod(request == null ? null : request.getPayMethod());
         PaymentFlow paymentFlow = upsertPendingPaymentFlow(orderNo, 1, payMethod, appointment.getAmount());
@@ -225,9 +230,11 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     }
 
     @Override
+    @Transactional
     public PageResult<Map<String, Object>> listMyAppointments(Integer page, Integer pageSize, Integer status) {
+        expirePastPendingAppointments();
         Long userId = requireUserId();
-        check(status == null || (status >= 1 && status <= 4), "预约状态不支持");
+        check(status == null || (status >= 1 && status <= 4) || status == 6, "预约状态不支持");
         List<Map<String, Object>> records = appointmentMapper.selectList(new LambdaQueryWrapper<Appointment>()
                         .eq(Appointment::getUserId, userId)
                         .eq(status != null, Appointment::getStatus, status)
@@ -379,6 +386,14 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                     return result;
                 }).collect(Collectors.toList());
         return paginate(records, page, pageSize);
+    }
+
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void expirePastPendingAppointments() {
+        List<Appointment> pendingAppointments = appointmentMapper.selectList(new LambdaQueryWrapper<Appointment>()
+                .eq(Appointment::getStatus, 1));
+        pendingAppointments.forEach(this::expireAppointmentIfDue);
     }
 
     @Scheduled(fixedDelay = 60000)
@@ -710,6 +725,66 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         return schedule;
     }
 
+    private Schedule findAppointmentSchedule(Appointment appointment) {
+        return scheduleMapper.selectOne(new LambdaQueryWrapper<Schedule>()
+                .eq(Schedule::getDoctorId, appointment.getDoctorId())
+                .eq(Schedule::getHospitalId, appointment.getHospitalId())
+                .eq(Schedule::getScheduleDate, appointment.getAppointmentDate())
+                .eq(Schedule::getTimeSlot, appointment.getAppointmentTime()));
+    }
+
+    private boolean restoreAppointmentSchedule(Appointment appointment) {
+        Schedule schedule = findAppointmentSchedule(appointment);
+        if (schedule == null || schedule.getTotalCount() == null || schedule.getRemainCount() == null) {
+            return false;
+        }
+        int updated = scheduleMapper.update(null, new LambdaUpdateWrapper<Schedule>()
+                .eq(Schedule::getId, schedule.getId())
+                .lt(Schedule::getRemainCount, schedule.getTotalCount())
+                .setSql("remain_count = remain_count + 1, status = 1"));
+        return updated == 1;
+    }
+
+    private void expireAppointmentIfDue(Appointment appointment) {
+        if (!Integer.valueOf(1).equals(appointment.getStatus())) {
+            return;
+        }
+        LocalDateTime appointmentStartTime = appointmentStartTime(appointment);
+        if (appointmentStartTime == null || appointmentStartTime.isAfter(LocalDateTime.now())) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = appointmentMapper.update(null, new LambdaUpdateWrapper<Appointment>()
+                .eq(Appointment::getId, appointment.getId())
+                .eq(Appointment::getStatus, 1)
+                .set(Appointment::getStatus, 6)
+                .set(Appointment::getUpdateTime, now));
+        if (updated != 1) {
+            return;
+        }
+        appointment.setStatus(6);
+        appointment.setUpdateTime(now);
+        if (!restoreAppointmentSchedule(appointment)) {
+            log.warn("Expired appointment schedule could not be released. orderNo={}", appointment.getOrderNo());
+        }
+        paymentFlowMapper.update(null, new LambdaUpdateWrapper<PaymentFlow>()
+                .eq(PaymentFlow::getBusinessOrderNo, appointment.getOrderNo())
+                .eq(PaymentFlow::getBusinessType, 1)
+                .eq(PaymentFlow::getPayStatus, 0)
+                .set(PaymentFlow::getPayStatus, 3)
+                .set(PaymentFlow::getUpdateTime, now));
+        createMessage(appointment.getUserId(), "挂号订单已过期",
+                "挂号订单 " + appointment.getOrderNo() + " 已超过就诊开始时间，已自动关闭。");
+    }
+
+    private LocalDateTime appointmentStartTime(Appointment appointment) {
+        if (appointment.getAppointmentDate() == null) {
+            return null;
+        }
+        LocalTime startTime = parseScheduleStartTime(appointment.getAppointmentTime());
+        return startTime == null ? null : LocalDateTime.of(appointment.getAppointmentDate(), startTime);
+    }
+
     private Schedule findConsultSchedule(Consult consult) {
         String requestedStart = consult.getAppointmentTime().toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"));
         return scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
@@ -802,6 +877,21 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
             }
         }
         return endTime;
+    }
+
+    private LocalTime parseScheduleStartTime(String timeSlot) {
+        if (timeSlot == null || timeSlot.trim().isEmpty()) {
+            return null;
+        }
+        Matcher matcher = Pattern.compile("(\\d{1,2}):(\\d{2})").matcher(timeSlot);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return LocalTime.of(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private String nextOrderNo(String prefix) {

@@ -25,8 +25,9 @@
               v-for="schedule in schedules"
               :key="schedule.id"
               class="schedule-option"
-              :class="{ active: Number(form.scheduleId) === Number(schedule.id) }"
-              @click="form.scheduleId = schedule.id"
+              :class="{ active: Number(form.scheduleId) === Number(schedule.id), disabled: !isScheduleAvailable(schedule) }"
+              :data-status="scheduleStatusText(schedule)"
+              @click="selectSchedule(schedule)"
             >
               <div>{{ schedule.date }}</div>
               <div>{{ schedule.timeSlot }}</div>
@@ -103,12 +104,49 @@ onMounted(async () => {
   }
 })
 
+function selectSchedule(schedule) {
+  if (!isScheduleAvailable(schedule)) return
+  form.value.scheduleId = schedule.id
+}
+
+function isScheduleAvailable(schedule) {
+  if (schedule?.isAvailable === false) return false
+  if (!schedule?.date) return schedule?.isAvailable !== false
+  const dateText = String(schedule.date).slice(0, 10)
+  const todayText = formatDate(new Date())
+  if (dateText < todayText) return false
+  if (dateText > todayText) return schedule?.isAvailable !== false
+  const endTime = parseScheduleEndTime(schedule.timeSlot)
+  if (!endTime) return schedule?.isAvailable !== false
+  const now = new Date()
+  return endTime > now.getHours() * 60 + now.getMinutes()
+}
+
+function scheduleStatusText(schedule) {
+  return Number(schedule?.remainCount || 0) <= 0 ? '已满' : '已过期'
+}
+
+function parseScheduleEndTime(timeSlot) {
+  const matches = String(timeSlot || '').match(/\d{1,2}:\d{2}/g)
+  if (!matches || matches.length === 0) return null
+  const [hour, minute] = matches[matches.length - 1].split(':').map(Number)
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour > 23 || minute > 59) return null
+  return hour * 60 + minute
+}
+
+function formatDate(date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 async function handleSubmit() {
   if (!doctor.value.id) { alert('医生信息未加载完成'); return }
   if (!form.value.familyMemberId) { alert('请选择就诊人'); return }
   if (!form.value.scheduleId) { alert('请选择预约时间'); return }
   const selectedSchedule = schedules.value.find((schedule) => Number(schedule.id) === Number(form.value.scheduleId))
   if (!selectedSchedule) { alert('所选时段不存在，请重新选择'); return }
+  if (!isScheduleAvailable(selectedSchedule)) { alert('该时段已过期，请重新选择'); return }
   const appointmentTime = scheduleStartTime(selectedSchedule)
   if (!appointmentTime) { alert('所选时段格式不正确，请重新选择'); return }
   const selectedMember = members.value.find((member) => Number(member.id) === Number(form.value.familyMemberId))
@@ -166,6 +204,10 @@ function unwrapResponseData(res) {
 }
 .schedule-option:hover, .schedule-option.active { border-color: var(--primary); }
 .schedule-option.active { background: #e3f2fd; }
+.schedule-option.disabled { background: #f7f7f7; border-color: #ddd; color: var(--text-muted); cursor: not-allowed; }
+.schedule-option.disabled:hover { border-color: #ddd; }
+.schedule-option.disabled::after { content: attr(data-status); display: inline-block; margin-top: 6px; padding: 3px 10px; background: #e0e0e0; color: #666; border-radius: 4px; font-size: 12px; }
+.schedule-option.disabled .schedule-fee { color: var(--text-muted); }
 .schedule-fee { color: #e53935; font-size: 14px; font-weight: 600; margin: 4px 0; }
 .empty { padding: 20px; text-align: center; color: var(--text-muted); }
 .add-link { font-size: 13px; color: var(--primary); margin-left: 12px; }

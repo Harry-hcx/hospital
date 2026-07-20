@@ -23,8 +23,8 @@
             <label class="method" :class="{ active: payMethod === 'alipay' }"><input type="radio" v-model="payMethod" value="alipay" /> 支付宝</label>
           </div>
         </div>
-        <button class="btn-primary btn-submit" @click="handlePay" :disabled="paying">
-          {{ paying ? '支付中...' : `确认支付 ¥${order.fee || 0}` }}
+        <button class="btn-primary btn-submit" @click="handlePay" :disabled="paying || isExpired">
+          {{ isExpired ? '订单已过期' : paying ? '支付中...' : `确认支付 ¥${order.fee || 0}` }}
         </button>
       </div>
     </div>
@@ -44,8 +44,10 @@ const router = useRouter()
 const order = ref({})
 const payMethod = ref('wechat')
 const paying = ref(false)
+const isExpired = computed(() => Number(order.value?.status) === 6)
 
 const payHint = computed(() => {
+  if (isExpired.value) return '就诊开始时间已过，订单已自动关闭。'
   if (route.query.payResult === 'cancelled') return '您已取消或中断支付宝支付，订单仍为待支付状态。'
   if (route.query.payResult === 'verify_failed') return '支付结果校验失败，请重新发起支付。'
   return ''
