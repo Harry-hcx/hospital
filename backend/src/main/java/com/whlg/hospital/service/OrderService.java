@@ -17,6 +17,8 @@ public interface OrderService {
 
     void cancelAppointment(String orderNo);
 
+    void completeAppointment(String orderNo);
+
     Map<String, Object> payAppointment(String orderNo, PayRequest request);
 
     PageResult<Map<String, Object>> listMyAppointments(Integer page, Integer pageSize, Integer status);

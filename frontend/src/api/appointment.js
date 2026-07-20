@@ -16,6 +16,10 @@ export function cancelAppointment(orderNo) {
   return request.post(`/appointments/${orderNo}/cancel`, {})
 }
 
+export function completeAppointment(orderNo) {
+  return request.post(`/appointments/${orderNo}/complete`, {})
+}
+
 export function payAppointment(orderNo, data) {
   return request.post(`/appointments/${orderNo}/pay`, data)
 }

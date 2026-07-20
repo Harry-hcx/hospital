@@ -25,6 +25,9 @@
               <button class="btn-primary" @click="$router.push(`/reservation/pay/${o.orderNo}`)">去支付</button>
               <button class="btn-cancel" @click="handleCancel(o.orderNo)">取消预约</button>
             </div>
+            <div class="order-actions" v-if="o.status === 2">
+              <button class="btn-primary" @click="handleComplete(o.orderNo)">确认完成</button>
+            </div>
             <div class="review-form" v-if="o.status === 3 && reviewedOrderIds.has(o.id)">已评价</div>
             <div class="review-form" v-else-if="o.status === 3">
               <button v-if="reviewingId !== o.id" class="btn-review" @click="openReview(o)">评价医生</button>
@@ -50,7 +53,7 @@ import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import Pagination from '@/components/Pagination.vue'
-import { getMyAppointments, cancelAppointment } from '@/api/appointment'
+import { getMyAppointments, cancelAppointment, completeAppointment } from '@/api/appointment'
 import { createReview, getMyReviews } from '@/api/user'
 import RateStar from '@/components/RateStar.vue'
 
@@ -120,6 +123,14 @@ async function handleCancel(orderNo) {
     await cancelAppointment(orderNo)
     fetchData()
   } catch (e) { console.error('取消失败', e) }
+}
+
+async function handleComplete(orderNo) {
+  if (!confirm('确认完成该预约？')) return
+  try {
+    await completeAppointment(orderNo)
+    fetchData()
+  } catch (e) { console.error('完成预约失败', e) }
 }
 </script>
 
