@@ -67,14 +67,13 @@ async function handleSubmit() {
 
 <style scoped>
 .change-password-page { min-height: 100vh; background: var(--bg); }
-.page-body { display: flex; gap: 24px; }
-.main { flex: 1; }
-.main h2 { font-size: 20px; margin-bottom: 20px; }
-.form-card { background: var(--bg-white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px; max-width: 600px; }
+.page-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; width: 100%; align-items: start; }
+.page-body :deep(.sidebar) { position: sticky; top: var(--header-height); left: 0; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding-top: 24px; }
+.main h2 { width: min(100%, 480px); font-size: 20px; margin-bottom: 20px; text-align: center; }
+.form-card { width: min(100%, 480px); background: var(--bg-white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px; }
 
-.password-form {
-  max-width: 400px;
-}
+.password-form { width: 100%; }
 
 .password-form .form-group {
   margin-bottom: 18px;
@@ -93,5 +92,10 @@ async function handleSubmit() {
   font-size: 14px;
 }
 
-@media (max-width: 768px) { .page-body { flex-direction: column; } }
+@media (max-width: 768px) {
+  .page-body { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .page-body :deep(.sidebar) { position: static; }
+  .main { padding-top: 0; }
+  .main h2, .form-card { width: 100%; }
+}
 </style>

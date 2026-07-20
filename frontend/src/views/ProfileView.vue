@@ -104,15 +104,21 @@ function unwrapResponseData(res) {
 
 <style scoped>
 .profile-page { min-height: 100vh; background: var(--bg); }
-.page-body { display: flex; gap: 24px; }
-.main { flex: 1; }
-.main h2 { font-size: 20px; margin-bottom: 20px; }
-.form-card { background: var(--bg-white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px; max-width: 600px; }
+.page-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; width: 100%; align-items: start; }
+.page-body :deep(.sidebar) { position: sticky; top: var(--header-height); left: 0; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding-top: 24px; }
+.main h2 { width: min(100%, 600px); font-size: 20px; margin-bottom: 20px; text-align: center; }
+.form-card { width: min(100%, 600px); background: var(--bg-white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px; }
 .avatar-section { text-align: center; margin-bottom: 24px; }
 .avatar-section img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 8px; }
 .btn-change { font-size: 13px; color: var(--primary); background: none; border: none; cursor: pointer; }
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
 .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; }
-@media (max-width: 768px) { .page-body { flex-direction: column; } }
+@media (max-width: 768px) {
+  .page-body { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .page-body :deep(.sidebar) { position: static; }
+  .main { padding-top: 0; }
+  .main h2, .form-card { width: 100%; }
+}
 </style>
