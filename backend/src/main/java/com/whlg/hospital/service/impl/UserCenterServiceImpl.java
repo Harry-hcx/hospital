@@ -128,6 +128,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
     public Map<String, Object> createFamilyMember(FamilyMemberRequest request) {
         validateFamilyMember(request);
         Long userId = requireUserId();
+        ensureFamilyMemberUnique(userId, request, null);
         if (Integer.valueOf(1).equals(request.getIsDefault())) {
             clearDefaultFamilyMember(userId, null);
         }
@@ -148,6 +149,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         FamilyMember familyMember = familyMemberMapper.selectById(id);
         check(familyMember != null && requireUserId().equals(familyMember.getUserId()), "就诊人不存在");
         validateFamilyMember(request);
+        ensureFamilyMemberUnique(familyMember.getUserId(), request, id);
         if (Integer.valueOf(1).equals(request.getIsDefault())) {
             clearDefaultFamilyMember(familyMember.getUserId(), id);
         }
@@ -169,9 +171,9 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         return paginate(reviewMapper.selectList(new LambdaQueryWrapper<Review>().eq(Review::getUserId, userId).orderByDesc(Review::getCreateTime)).stream()
                 .map(item -> {
                     Map<String, Object> result = new LinkedHashMap<String, Object>();
-                    result.put("id", item.getId());
+                    result.put("id", String.valueOf(item.getId()));
                     result.put("orderType", item.getOrderType());
-                    result.put("orderId", item.getOrderId());
+                    result.put("orderId", String.valueOf(item.getOrderId()));
                     result.put("doctorId", item.getDoctorId());
                     com.whlg.hospital.entity.Doctor doctor = doctorMapper.selectById(item.getDoctorId());
                     result.put("doctorName", doctor == null ? null : doctor.getName());
@@ -224,7 +226,7 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
                 .set(com.whlg.hospital.entity.Doctor::getRating,
                         BigDecimal.valueOf(average).setScale(1, RoundingMode.HALF_UP)));
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("id", review.getId());
+        result.put("id", String.valueOf(review.getId()));
         return result;
     }
 
@@ -385,6 +387,27 @@ public class UserCenterServiceImpl extends ServiceSupport implements UserCenterS
         familyMember.setBirthday(request.getBirthday());
         familyMember.setIdCard(request.getIdCard() == null ? null : request.getIdCard().trim());
         familyMember.setIsDefault(request.getIsDefault() == null ? 0 : request.getIsDefault());
+    }
+
+    private void ensureFamilyMemberUnique(Long userId, FamilyMemberRequest request, Long exceptId) {
+        LambdaQueryWrapper<FamilyMember> phoneQuery = new LambdaQueryWrapper<FamilyMember>()
+                .eq(FamilyMember::getUserId, userId)
+                .eq(FamilyMember::getPhone, request.getPhone().trim());
+        if (exceptId != null) {
+            phoneQuery.ne(FamilyMember::getId, exceptId);
+        }
+        check(familyMemberMapper.selectCount(phoneQuery) == 0, "该手机号已存在就诊人，请勿重复添加");
+
+        if (request.getIdCard() == null || request.getIdCard().trim().isEmpty()) {
+            return;
+        }
+        LambdaQueryWrapper<FamilyMember> idCardQuery = new LambdaQueryWrapper<FamilyMember>()
+                .eq(FamilyMember::getUserId, userId)
+                .eq(FamilyMember::getIdCard, request.getIdCard().trim());
+        if (exceptId != null) {
+            idCardQuery.ne(FamilyMember::getId, exceptId);
+        }
+        check(familyMemberMapper.selectCount(idCardQuery) == 0, "该身份证号已存在就诊人，请勿重复添加");
     }
 
     private void validateFamilyMember(FamilyMemberRequest request) {

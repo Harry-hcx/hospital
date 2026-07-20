@@ -2,6 +2,7 @@ package com.whlg.hospital.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import com.whlg.hospital.dto.CreateAppointmentRequest;
 import com.whlg.hospital.dto.CreateConsultRequest;
 import com.whlg.hospital.dto.CreatePaymentRequest;
@@ -241,7 +242,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                         .orderByDesc(Appointment::getCreateTime))
                 .stream().map(item -> {
                     Map<String, Object> result = new LinkedHashMap<String, Object>();
-                    result.put("id", item.getId());
+                    result.put("id", String.valueOf(item.getId()));
                     result.put("orderNo", item.getOrderNo());
                     result.put("doctorId", item.getDoctorId());
                     result.put("hospitalId", item.getHospitalId());
@@ -373,7 +374,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                         .orderByDesc(Consult::getCreateTime))
                 .stream().map(item -> {
                     Map<String, Object> result = new LinkedHashMap<String, Object>();
-                    result.put("id", item.getId());
+                    result.put("id", String.valueOf(item.getId()));
                     result.put("orderNo", item.getOrderNo());
                     result.put("doctorId", item.getDoctorId());
                     Doctor doctor = doctorMapper.selectById(item.getDoctorId());
@@ -654,19 +655,17 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
             return familyMember;
         }
 
-        LambdaQueryWrapper<FamilyMember> query = new LambdaQueryWrapper<FamilyMember>()
-                .eq(FamilyMember::getUserId, userId);
-        if (notBlank(request.getPatientPhone())) {
-            query.eq(FamilyMember::getPhone, request.getPatientPhone().trim());
-        } else if (notBlank(request.getPatientIdCard())) {
-            query.eq(FamilyMember::getIdCard, request.getPatientIdCard().trim());
-        } else if (notBlank(request.getPatientName())) {
-            query.eq(FamilyMember::getName, request.getPatientName().trim());
-        } else {
+        familyMember = findExistingFamilyMember(userId, FamilyMember::getPhone, request.getPatientPhone());
+        if (familyMember == null) {
+            familyMember = findExistingFamilyMember(userId, FamilyMember::getIdCard, request.getPatientIdCard());
+        }
+        if (familyMember == null) {
+            familyMember = findExistingFamilyMember(userId, FamilyMember::getName, request.getPatientName());
+        }
+        if (familyMember == null && !notBlank(request.getPatientPhone())
+                && !notBlank(request.getPatientIdCard()) && !notBlank(request.getPatientName())) {
             return null;
         }
-
-        familyMember = familyMemberMapper.selectOne(query);
         if (familyMember != null) {
             return familyMember;
         }
@@ -684,6 +683,21 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         created.setUpdateTime(LocalDateTime.now());
         familyMemberMapper.insert(created);
         return created;
+    }
+
+    private FamilyMember findExistingFamilyMember(Long userId, SFunction<FamilyMember, ?> column, String value) {
+        if (!notBlank(value)) {
+            return null;
+        }
+        return familyMemberMapper.selectList(new LambdaQueryWrapper<FamilyMember>()
+                        .eq(FamilyMember::getUserId, userId)
+                        .eq(column, value.trim())
+                        .orderByDesc(FamilyMember::getUpdateTime)
+                        .orderByDesc(FamilyMember::getId)
+                        .last("LIMIT 1"))
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean notBlank(String value) {
