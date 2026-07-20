@@ -30,6 +30,7 @@
             >
               <div>{{ schedule.date }}</div>
               <div>{{ schedule.timeSlot }}</div>
+              <div class="schedule-fee">咨询费 ¥{{ doctor.consultPrice || 0 }}</div>
               <div>剩余 {{ schedule.remainCount }}</div>
             </div>
           </div>
@@ -165,6 +166,7 @@ function unwrapResponseData(res) {
 }
 .schedule-option:hover, .schedule-option.active { border-color: var(--primary); }
 .schedule-option.active { background: #e3f2fd; }
+.schedule-fee { color: #e53935; font-size: 14px; font-weight: 600; margin: 4px 0; }
 .empty { padding: 20px; text-align: center; color: var(--text-muted); }
 .add-link { font-size: 13px; color: var(--primary); margin-left: 12px; }
 .btn-submit { width: 100%; padding: 14px; font-size: 16px; margin-top: 16px; }

@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class OrderApiTest extends BaseApiTest {
@@ -179,6 +180,30 @@ class OrderApiTest extends BaseApiTest {
     }
 
     @Test
+    void shouldDecreaseScheduleCountWhenCreatingConsult() throws Exception {
+        Integer before = jdbcTemplate.queryForObject("select remain_count from t_schedule where id = ?", Integer.class, 1L);
+
+        createConsult();
+
+        Integer after = jdbcTemplate.queryForObject("select remain_count from t_schedule where id = ?", Integer.class, 1L);
+        assertEquals(before - 1, after);
+    }
+
+    @Test
+    void shouldRejectConsultOutsideDoctorSchedule() throws Exception {
+        Map<String, Object> request = consultRequest();
+        request.put("appointmentTime", LocalDateTime.now().plusDays(1).withHour(11).withMinute(0).withSecond(0).withNano(0)
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+        mockMvc.perform(post("/api/consults")
+                        .header("Authorization", auth())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
     void shouldGetConsultDetail() throws Exception {
         mockMvc.perform(get("/api/consults/CO202607170001").header("Authorization", auth()))
                 .andExpect(status().isOk())
@@ -208,10 +233,14 @@ class OrderApiTest extends BaseApiTest {
 
     @Test
     void shouldCancelPendingConsult() throws Exception {
+        Integer before = jdbcTemplate.queryForObject("select remain_count from t_schedule where id = ?", Integer.class, 1L);
         String orderNo = createConsult();
         mockMvc.perform(post("/api/consults/" + orderNo + "/cancel").header("Authorization", auth()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
+
+        Integer after = jdbcTemplate.queryForObject("select remain_count from t_schedule where id = ?", Integer.class, 1L);
+        assertEquals(before, after);
 
         mockMvc.perform(get("/api/consults/" + orderNo).header("Authorization", auth()))
                 .andExpect(status().isOk())
@@ -412,7 +441,7 @@ class OrderApiTest extends BaseApiTest {
         request.put("patientName", "张三");
         request.put("patientPhone", "13800138000");
         request.put("diseaseDesc", "复诊");
-        request.put("appointmentTime", LocalDateTime.now().plusDays(1).withNano(0)
+        request.put("appointmentTime", LocalDateTime.now().plusDays(1).withHour(8).withMinute(0).withSecond(0).withNano(0)
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         request.put("duration", 30);
         return request;

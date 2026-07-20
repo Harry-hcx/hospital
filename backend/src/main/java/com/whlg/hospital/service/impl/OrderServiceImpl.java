@@ -37,6 +37,7 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Period;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -252,6 +253,13 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         Doctor doctor = doctorMapper.selectById(request.getDoctorId());
         check(doctor != null && Integer.valueOf(1).equals(doctor.getStatus()), "医生不可咨询");
         check(doctor.getPrice() != null && doctor.getPrice().compareTo(BigDecimal.ZERO) >= 0, "咨询价格异常");
+        Schedule schedule = resolveConsultSchedule(request, doctor);
+        int updated = scheduleMapper.update(null, new LambdaUpdateWrapper<Schedule>()
+                .eq(Schedule::getId, schedule.getId())
+                .eq(Schedule::getStatus, 1)
+                .gt(Schedule::getRemainCount, 0)
+                .setSql("remain_count = remain_count - 1, status = CASE WHEN remain_count <= 1 THEN 2 ELSE 1 END"));
+        check(updated == 1, "咨询号源不足");
 
         Consult consult = new Consult();
         consult.setOrderNo(nextOrderNo("CO"));
@@ -298,9 +306,16 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     public void cancelConsult(String orderNo) {
         Consult consult = requireOwnedConsult(orderNo);
         check(Integer.valueOf(1).equals(consult.getStatus()), "当前咨询不可取消");
+        Schedule schedule = findConsultSchedule(consult);
+        check(schedule != null && schedule.getTotalCount() != null && schedule.getRemainCount() != null, "对应排班不存在");
         consult.setStatus(5);
         consult.setUpdateTime(LocalDateTime.now());
         consultMapper.updateById(consult);
+        int updated = scheduleMapper.update(null, new LambdaUpdateWrapper<Schedule>()
+                .eq(Schedule::getId, schedule.getId())
+                .lt(Schedule::getRemainCount, schedule.getTotalCount())
+                .setSql("remain_count = remain_count + 1, status = 1"));
+        check(updated == 1, "咨询号源恢复失败");
         createMessage(consult.getUserId(), "咨询已取消", "咨询订单 " + consult.getOrderNo() + " 已取消。");
     }
 
@@ -654,6 +669,35 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         }
         check(matched != null, "排班不存在");
         return matched;
+    }
+
+    private Schedule resolveConsultSchedule(CreateConsultRequest request, Doctor doctor) {
+        check(request.getAppointmentTime().getSecond() == 0 && request.getAppointmentTime().getNano() == 0,
+                "咨询时间必须选择完整排班");
+        String requestedStart = request.getAppointmentTime().toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"));
+        Schedule schedule = scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
+                        .eq(Schedule::getDoctorId, doctor.getId())
+                        .eq(Schedule::getHospitalId, doctor.getHospitalId())
+                        .eq(Schedule::getScheduleDate, request.getAppointmentTime().toLocalDate())
+                        .eq(Schedule::getStatus, 1)
+                        .gt(Schedule::getRemainCount, 0))
+                .stream()
+                .filter(item -> item.getTimeSlot() != null && item.getTimeSlot().startsWith(requestedStart + "-"))
+                .findFirst()
+                .orElse(null);
+        check(schedule != null, "咨询时间不在医生可预约排班内");
+        return schedule;
+    }
+
+    private Schedule findConsultSchedule(Consult consult) {
+        String requestedStart = consult.getAppointmentTime().toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"));
+        return scheduleMapper.selectList(new LambdaQueryWrapper<Schedule>()
+                        .eq(Schedule::getDoctorId, consult.getDoctorId())
+                        .eq(Schedule::getScheduleDate, consult.getAppointmentTime().toLocalDate()))
+                .stream()
+                .filter(item -> item.getTimeSlot() != null && item.getTimeSlot().startsWith(requestedStart + "-"))
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean matchesPeriod(String timeSlot, String period) {
