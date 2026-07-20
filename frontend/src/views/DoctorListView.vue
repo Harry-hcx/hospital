@@ -112,15 +112,16 @@ function handlePageChange(p) { page.value = p; fetchData() }
 .filter-item label { font-size: 13px; color: var(--text-light); white-space: nowrap; }
 .filter-item select, .filter-item input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; min-width: 140px; }
 .doctor-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;
 }
 .doctor-card {
   padding: 20px; background: var(--bg-white); border-radius: var(--radius);
   box-shadow: var(--shadow); cursor: pointer; text-align: center;
-  transition: transform 0.2s;
+  transition: transform 0.2s; min-width: 0;
 }
 .doctor-card:hover { transform: translateY(-4px); }
 .doctor-img { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; }
+.doctor-info { min-width: 0; }
 .doctor-info h4 { font-size: 16px; margin-bottom: 6px; }
 .title-tag { font-size: 12px; padding: 1px 6px; background: #e3f2fd; color: var(--primary); border-radius: 3px; font-weight: normal; margin-left: 4px; }
 .dept { font-size: 13px; color: var(--text-light); margin-bottom: 4px; }

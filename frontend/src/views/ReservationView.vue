@@ -3,7 +3,10 @@
     <AppHeader />
     <div class="page-content">
       <div class="page-breadcrumb">
-        <router-link to="/">首页</router-link> > <span>预约挂号</span>
+        <router-link to="/">首页</router-link> >
+        <router-link to="/doctors">找医生</router-link> >
+        <router-link v-if="doctor.id" :to="`/doctor/${doctor.id}`">{{ doctor.name }}</router-link> >
+        <span>预约挂号</span>
       </div>
 
       <div class="form-card">
@@ -22,7 +25,14 @@
         <div class="form-group">
           <label>选择排班</label>
           <div class="schedule-options">
-            <div class="schedule-option" v-for="s in schedules" :key="s.id" :class="{ active: Number(form.scheduleId) === Number(s.id), disabled: !isScheduleAvailable(s) }" :data-status="scheduleStatusText(s)" @click="selectSchedule(s)">
+            <div
+              v-for="s in schedules"
+              :key="s.id"
+              class="schedule-option"
+              :class="{ active: Number(form.scheduleId) === Number(s.id), disabled: !isScheduleAvailable(s) }"
+              :data-status="scheduleStatusText(s)"
+              @click="selectSchedule(s)"
+            >
               <div>{{ s.date }}</div>
               <div>{{ s.timeSlot }}</div>
               <div class="fee">¥{{ s.registrationPrice }}</div>
