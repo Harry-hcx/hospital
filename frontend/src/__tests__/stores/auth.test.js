@@ -1,6 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+
+vi.mock('@/api/auth', () => ({
+  loginApi: vi.fn(),
+  getMeApi: vi.fn(),
+  logoutApi: vi.fn().mockResolvedValue({ code: 200 }),
+}))
 
 describe('AuthStore', () => {
   beforeEach(() => {
@@ -37,8 +43,9 @@ describe('AuthStore', () => {
     localStorage.setItem('userInfo', JSON.stringify({ phone: '138' }))
     setActivePinia(createPinia())
     const auth = useAuthStore()
-    auth.logout()
-    expect(auth.isLoggedIn).toBe(false)
-    expect(localStorage.getItem('token')).toBeNull()
+    return auth.logout().then(() => {
+      expect(auth.isLoggedIn).toBe(false)
+      expect(localStorage.getItem('token')).toBeNull()
+    })
   })
 })

@@ -112,7 +112,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                 .eq(Appointment::getHospitalId, doctor.getHospitalId())
                 .eq(Appointment::getAppointmentDate, schedule.getScheduleDate())
                 .eq(Appointment::getAppointmentTime, schedule.getTimeSlot())
-                .notIn(Appointment::getStatus, Arrays.asList(4, 6)));
+                .in(Appointment::getStatus, Arrays.asList(1, 2)));
         check(existing == 0, "该排班已预约");
 
         int updated = scheduleMapper.update(null, new LambdaUpdateWrapper<Schedule>()

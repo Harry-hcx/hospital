@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import AppHeader from '@/components/AppHeader.vue'
 import { useAuthStore } from '@/stores/auth'
+
+vi.mock('@/api/auth', () => ({
+  loginApi: vi.fn(),
+  getMeApi: vi.fn(),
+  logoutApi: vi.fn().mockResolvedValue({ code: 200 }),
+}))
 
 describe('AppHeader', () => {
   beforeEach(() => {
@@ -41,6 +47,7 @@ describe('AppHeader', () => {
     })
 
     await wrapper.find('.logout-btn').trigger('click')
+    await flushPromises()
     expect(localStorage.getItem('token')).toBeNull()
   })
 
