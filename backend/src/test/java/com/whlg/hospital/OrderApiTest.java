@@ -116,6 +116,25 @@ class OrderApiTest extends BaseApiTest {
     }
 
     @Test
+    void shouldExpireUnpaidAppointmentAfterEndTime() throws Exception {
+        String orderNo = createAppointment();
+        LocalDateTime expiredTime = LocalDateTime.now().minusMinutes(2).withSecond(0).withNano(0);
+        String startTime = expiredTime.format(DateTimeFormatter.ofPattern("HH:mm"));
+        String endTime = expiredTime.plusMinutes(1).format(DateTimeFormatter.ofPattern("HH:mm"));
+        jdbcTemplate.update("update t_schedule set schedule_date = ?, time_slot = ? where id = ?",
+                expiredTime.toLocalDate(), startTime + "-" + endTime, 1L);
+        jdbcTemplate.update("update t_appointment set appointment_date = ?, appointment_time = ? where order_no = ?",
+                expiredTime.toLocalDate(), startTime + "-" + endTime, orderNo);
+
+        mockMvc.perform(get("/api/appointments/" + orderNo).header("Authorization", auth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(6));
+
+        Integer remainCount = jdbcTemplate.queryForObject("select remain_count from t_schedule where id = ?", Integer.class, 1L);
+        assertEquals(8, remainCount);
+    }
+
+    @Test
     void shouldPayAppointment() throws Exception {
         String orderNo = createAppointment();
         Map<String, Object> request = new HashMap<String, Object>();
@@ -252,11 +271,11 @@ class OrderApiTest extends BaseApiTest {
     }
 
     @Test
-    void shouldExpireUnpaidConsultAfterAppointmentTime() throws Exception {
+    void shouldExpireUnpaidConsultAfterEndTime() throws Exception {
         String orderNo = createConsult();
-        LocalDateTime expiredTime = LocalDateTime.now().minusMinutes(1).withSecond(0).withNano(0);
+        LocalDateTime expiredTime = LocalDateTime.now().minusMinutes(40).withSecond(0).withNano(0);
         String startTime = expiredTime.format(DateTimeFormatter.ofPattern("HH:mm"));
-        String endTime = expiredTime.plusMinutes(1).format(DateTimeFormatter.ofPattern("HH:mm"));
+        String endTime = expiredTime.plusMinutes(30).format(DateTimeFormatter.ofPattern("HH:mm"));
         jdbcTemplate.update("update t_schedule set schedule_date = ?, time_slot = ? where id = ?",
                 expiredTime.toLocalDate(), startTime + "-" + endTime, 1L);
         jdbcTemplate.update("update t_consult set appointment_time = ? where order_no = ?", expiredTime, orderNo);

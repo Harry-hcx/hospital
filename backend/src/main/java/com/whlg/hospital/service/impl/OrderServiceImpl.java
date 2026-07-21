@@ -401,8 +401,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     @Transactional
     public void expirePastPendingConsults() {
         List<Consult> pendingConsults = consultMapper.selectList(new LambdaQueryWrapper<Consult>()
-                .eq(Consult::getStatus, 1)
-                .le(Consult::getAppointmentTime, LocalDateTime.now()));
+                .eq(Consult::getStatus, 1));
         pendingConsults.forEach(this::expireConsultIfDue);
     }
 
@@ -763,8 +762,8 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         if (!Integer.valueOf(1).equals(appointment.getStatus())) {
             return;
         }
-        LocalDateTime appointmentStartTime = appointmentStartTime(appointment);
-        if (appointmentStartTime == null || appointmentStartTime.isAfter(LocalDateTime.now())) {
+        LocalDateTime appointmentEndTime = appointmentEndTime(appointment);
+        if (appointmentEndTime == null || appointmentEndTime.isAfter(LocalDateTime.now())) {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
@@ -788,15 +787,15 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                 .set(PaymentFlow::getPayStatus, 3)
                 .set(PaymentFlow::getUpdateTime, now));
         createMessage(appointment.getUserId(), "挂号订单已过期",
-                "挂号订单 " + appointment.getOrderNo() + " 已超过就诊开始时间，已自动关闭。");
+                "挂号订单 " + appointment.getOrderNo() + " 已超过就诊结束时间，已自动关闭。");
     }
 
-    private LocalDateTime appointmentStartTime(Appointment appointment) {
+    private LocalDateTime appointmentEndTime(Appointment appointment) {
         if (appointment.getAppointmentDate() == null) {
             return null;
         }
-        LocalTime startTime = parseScheduleStartTime(appointment.getAppointmentTime());
-        return startTime == null ? null : LocalDateTime.of(appointment.getAppointmentDate(), startTime);
+        LocalTime endTime = parseScheduleEndTime(appointment.getAppointmentTime());
+        return endTime == null ? null : LocalDateTime.of(appointment.getAppointmentDate(), endTime);
     }
 
     private Schedule findConsultSchedule(Consult consult) {
@@ -825,7 +824,12 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
     private void expireConsultIfDue(Consult consult) {
         if (!Integer.valueOf(1).equals(consult.getStatus())
                 || consult.getAppointmentTime() == null
-                || consult.getAppointmentTime().isAfter(LocalDateTime.now())) {
+                || consult.getDuration() == null
+                || consult.getDuration() <= 0) {
+            return;
+        }
+        LocalDateTime consultEndTime = consultEndTime(consult);
+        if (consultEndTime == null || consultEndTime.isAfter(LocalDateTime.now())) {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
@@ -849,7 +853,7 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
                 .eq(PaymentFlow::getPayStatus, 0)
                 .set(PaymentFlow::getPayStatus, 3)
                 .set(PaymentFlow::getUpdateTime, now));
-        createMessage(consult.getUserId(), "咨询订单已过期", "咨询订单 " + consult.getOrderNo() + " 已超过预约开始时间，已自动关闭。");
+        createMessage(consult.getUserId(), "咨询订单已过期", "咨询订单 " + consult.getOrderNo() + " 已超过预约结束时间，已自动关闭。");
     }
 
     private boolean matchesPeriod(String timeSlot, String period) {
@@ -906,6 +910,13 @@ public class OrderServiceImpl extends ServiceSupport implements OrderService {
         } catch (RuntimeException ignored) {
             return null;
         }
+    }
+
+    private LocalDateTime consultEndTime(Consult consult) {
+        if (consult.getAppointmentTime() == null || consult.getDuration() == null) {
+            return null;
+        }
+        return consult.getAppointmentTime().plusMinutes(consult.getDuration());
     }
 
     private String nextOrderNo(String prefix) {
